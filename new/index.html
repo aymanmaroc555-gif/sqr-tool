@@ -2269,7 +2269,7 @@
             useEffect(() => {
                 const savedData = localStorage.getItem('r21_data');
                 const savedStats = localStorage.getItem('r21_stats');
-                const savedProcessed = localStorage.getItem('r21_processed');
+                // savedProcessed is already handled in useState, removing it here prevents the crash
                 const savedIsrList = localStorage.getItem('r21_isr_list');
                 
                 if (savedData) {
@@ -2282,7 +2282,7 @@
                     setAvailableStats(Array.from(stats).sort());
                 }
                 if (savedStats) setSelectedStats(new Set(JSON.parse(savedStats)));
-                if (savedProcessed) setProcessedRows(new Set(JSON.parse(savedProcessed)));
+                // The broken line was deleted from here
                 if (savedIsrList) setIsrList(JSON.parse(savedIsrList));
             }, []);
 
@@ -3236,4 +3236,5 @@
 </body>
 
 </html> 
+
 
