@@ -1,0 +1,3188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQR Toolkit</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+
+        /* --- SQR Parser Pro Styles --- */
+        .status-badge {
+            transition: all 0.2s;
+            border: 1px solid;
+            cursor: pointer;
+            user-select: none;
+            background-color: #f9fafb; border-color: #e5e7eb; color: #6b7280;
+        }
+        .dark .status-badge {
+            background-color: #374151; border-color: #4b5563; color: #9ca3af;
+        }
+        .status-badge:hover { transform: translateY(-1px); }
+        .status-badge:active { transform: translateY(0px); }
+
+        /* Checked States */
+        input:checked + .badge-approve {
+            background-color: #dcfce7; color: #15803d; border-color: #86efac;
+            box-shadow: 0 2px 4px rgba(22, 163, 74, 0.1);
+        }
+        .dark input:checked + .badge-approve {
+            background-color: #064e3b; color: #4ade80; border-color: #059669;
+        }
+
+        input:checked + .badge-reject {
+            background-color: #fee2e2; color: #b91c1c; border-color: #fca5a5;
+            box-shadow: 0 2px 4px rgba(220, 38, 38, 0.1);
+        }
+        .dark input:checked + .badge-reject {
+            background-color: #7f1d1d; color: #f87171; border-color: #991b1b;
+        }
+
+        input:checked + .badge-step {
+            background-color: #f3e8ff; color: #7e22ce; border-color: #d8b4fe;
+            box-shadow: 0 2px 4px rgba(147, 51, 234, 0.1);
+        }
+        .dark input:checked + .badge-step {
+            background-color: #581c87; color: #c084fc; border-color: #7e22ce;
+        }
+
+        /* Emoji Animation */
+        .emoji-orb {
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid;
+            transition: all 0.3s;
+        }
+        .emoji-orb-light {
+            background: rgba(255, 255, 255, 0.8);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        .dark .emoji-orb {
+            background: rgba(31, 41, 55, 0.8);
+            border-color: rgba(75, 85, 99, 0.5);
+        }
+
+        .pop-in { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Table Styling */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .row-animate { animation: slideIn 0.3s ease-out forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
+
+        /* Copy Feedback Styling */
+        .click-copy { 
+            cursor: pointer; 
+            position: relative; 
+            transition: all 0.2s; 
+            border: 2px solid transparent; 
+            border-radius: 4px;
+            padding: 2px 4px; 
+            margin: -4px; 
+        }
+        .click-copy:hover { filter: brightness(0.95); transform: scale(1.02); }
+        .click-copy:active { transform: scale(0.98); }
+        
+        /* New Style for Last Copied Item */
+        .last-copied {
+            border-color: #818cf8; 
+            background-color: #e0e7ff; 
+            box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+        }
+        .dark .last-copied {
+            background-color: #312e81; 
+            border-color: #6366f1;
+        }
+        
+        .copy-tooltip {
+            position: absolute;
+            top: -25px; left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937; color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+            z-index: 50;
+        }
+        .dark .copy-tooltip { background: #f3f4f6; color: #111827; }
+        .show-copied .copy-tooltip { opacity: 1; }
+
+        /* --- Background Effects (Matrix - Updated) --- */
+        /* From Uiverse.io by solowzrd */
+        .jp-matrix {
+            background-color: #05050a;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            grid-auto-rows: 40px;
+            font-size: 32px;
+            color: rgba(0, 150, 255, 0.4);
+            font-family: "Courier New", Courier, monospace;
+            justify-content: center;
+            align-content: center;
+            z-index: -1;
+        }
+
+        .jp-matrix > span {
+            text-align: center;
+            text-shadow: 0 0 5px rgba(0, 150, 255, 0.5);
+            user-select: none;
+            transition: color 0.5s, text-shadow 0.5s;
+            line-height: 1;
+        }
+
+        .jp-matrix > span:nth-child(19n + 2) { animation: smooth-pulse 3.5s ease-in-out infinite 0.2s; }
+        .jp-matrix > span:nth-child(29n + 1) { animation: smooth-pulse 4.1s ease-in-out infinite 0.7s; }
+        .jp-matrix > span:nth-child(11n) { color: rgba(100, 200, 255, 0.7); animation: smooth-pulse 2.9s ease-in-out infinite 1.1s; }
+        .jp-matrix > span:nth-child(37n + 10) { animation: smooth-pulse 5.3s ease-in-out infinite 1.5s; }
+        .jp-matrix > span:nth-child(41n + 1) { animation: smooth-pulse 3.9s ease-in-out infinite 0.4s; }
+        .jp-matrix > span:nth-child(17n + 9) { animation: smooth-pulse 2.8s ease-in-out infinite 0.9s; }
+        .jp-matrix > span:nth-child(23n + 18) { animation: smooth-pulse 4.3s ease-in-out infinite 1.3s; }
+        .jp-matrix > span:nth-child(31n + 4) { animation: smooth-pulse 5.6s ease-in-out infinite 0.1s; }
+        .jp-matrix > span:nth-child(43n + 20) { animation: smooth-pulse 3.6s ease-in-out infinite 1.8s; }
+        .jp-matrix > span:nth-child(13n + 6) { animation: smooth-pulse 3.2s ease-in-out infinite 1.2s; }
+        .jp-matrix > span:nth-child(53n + 5) { animation: smooth-pulse 4.9s ease-in-out infinite 0.5s; }
+        .jp-matrix > span:nth-child(47n + 15) { animation: smooth-pulse 5.9s ease-in-out infinite 1s; }
+
+        @keyframes smooth-pulse {
+            0%, 100% { color: rgba(0, 150, 255, 0.4); text-shadow: 0 0 5px rgba(0, 150, 255, 0.5); }
+            30% { color: rgba(100, 200, 255, 1); text-shadow: 0 0 10px rgba(100, 200, 255, 1), 0 0 15px rgba(100, 200, 255, 1); }
+            50% { color: rgba(255, 105, 180, 1); text-shadow: 0 0 10px rgba(255, 105, 180, 1), 0 0 15px rgba(255, 105, 180, 1); }
+            70% { color: #ffffff; text-shadow: 0 0 10px #fff, 0 0 15px #fff, 0 0 20px #fff; }
+        }
+
+        /* --- Hex Background (Carbon Hex) --- */
+        /* From Uiverse.io by csemszepp */ 
+        .hex-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            --s: 200px; /* control the size */
+            --c1: #1d1d1d;
+            --c2: #4e4f51;
+            --c3: #3c3c3c;
+
+            background: repeating-conic-gradient(
+                    from 30deg,
+                    #0000 0 120deg,
+                    var(--c3) 0 180deg
+                )
+                calc(0.5 * var(--s)) calc(0.5 * var(--s) * 0.577),
+                repeating-conic-gradient(
+                from 30deg,
+                var(--c1) 0 60deg,
+                var(--c2) 0 120deg,
+                var(--c3) 0 180deg
+                );
+            background-size: var(--s) calc(var(--s) * 0.577);
+        }
+
+        /* --- Matrix Rain Background (New) --- */
+        /* From Uiverse.io by whoisyourdeadie */ 
+        .matrix-container {
+            position: fixed; /* Changed from relative to fixed for background */
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .matrix-pattern {
+            position: relative;
+            width: 1000px;
+            height: 100%;
+            flex-shrink: 0;
+        }
+
+        .matrix-column {
+            position: absolute;
+            top: -100%;
+            width: 20px;
+            height: 100%;
+            font-size: 16px;
+            line-height: 18px;
+            font-weight: bold;
+            animation: fall linear infinite;
+            white-space: nowrap;
+        }
+
+        .matrix-column::before {
+            content: "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: linear-gradient(
+                to bottom,
+                #ffffff 0%,
+                #ffffff 5%,
+                #00ff41 10%,
+                #00ff41 20%,
+                #00dd33 30%,
+                #00bb22 40%,
+                #009911 50%,
+                #007700 60%,
+                #005500 70%,
+                #003300 80%,
+                rgba(0, 255, 65, 0.5) 90%,
+                transparent 100%
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            writing-mode: vertical-lr;
+            letter-spacing: 1px;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Column Delays */
+        .matrix-column:nth-child(1) { left: 0px; animation-delay: -2.5s; animation-duration: 3s; }
+        .matrix-column:nth-child(2) { left: 25px; animation-delay: -3.2s; animation-duration: 4s; }
+        .matrix-column:nth-child(3) { left: 50px; animation-delay: -1.8s; animation-duration: 2.5s; }
+        .matrix-column:nth-child(4) { left: 75px; animation-delay: -2.9s; animation-duration: 3.5s; }
+        .matrix-column:nth-child(5) { left: 100px; animation-delay: -1.5s; animation-duration: 3s; }
+        .matrix-column:nth-child(6) { left: 125px; animation-delay: -3.8s; animation-duration: 4.5s; }
+        .matrix-column:nth-child(7) { left: 150px; animation-delay: -2.1s; animation-duration: 2.8s; }
+        .matrix-column:nth-child(8) { left: 175px; animation-delay: -2.7s; animation-duration: 3.2s; }
+        .matrix-column:nth-child(9) { left: 200px; animation-delay: -3.4s; animation-duration: 3.8s; }
+        .matrix-column:nth-child(10) { left: 225px; animation-delay: -1.9s; animation-duration: 2.7s; }
+        .matrix-column:nth-child(11) { left: 250px; animation-delay: -3.6s; animation-duration: 4.2s; }
+        .matrix-column:nth-child(12) { left: 275px; animation-delay: -2.3s; animation-duration: 3.1s; }
+        .matrix-column:nth-child(13) { left: 300px; animation-delay: -3.1s; animation-duration: 3.6s; }
+        .matrix-column:nth-child(14) { left: 325px; animation-delay: -2.6s; animation-duration: 2.9s; }
+        .matrix-column:nth-child(15) { left: 350px; animation-delay: -3.7s; animation-duration: 4.1s; }
+        .matrix-column:nth-child(16) { left: 375px; animation-delay: -2.8s; animation-duration: 3.3s; }
+        .matrix-column:nth-child(17) { left: 400px; animation-delay: -3.3s; animation-duration: 3.7s; }
+        .matrix-column:nth-child(18) { left: 425px; animation-delay: -2.2s; animation-duration: 2.6s; }
+        .matrix-column:nth-child(19) { left: 450px; animation-delay: -3.9s; animation-duration: 4.3s; }
+        .matrix-column:nth-child(20) { left: 475px; animation-delay: -2.4s; animation-duration: 3.4s; }
+        .matrix-column:nth-child(21) { left: 500px; animation-delay: -1.7s; animation-duration: 2.4s; }
+        .matrix-column:nth-child(22) { left: 525px; animation-delay: -3.5s; animation-duration: 3.9s; }
+        .matrix-column:nth-child(23) { left: 550px; animation-delay: -2s; animation-duration: 3s; }
+        .matrix-column:nth-child(24) { left: 575px; animation-delay: -4s; animation-duration: 4.4s; }
+        .matrix-column:nth-child(25) { left: 600px; animation-delay: -1.6s; animation-duration: 2.3s; }
+        .matrix-column:nth-child(26) { left: 625px; animation-delay: -3s; animation-duration: 3.5s; }
+        .matrix-column:nth-child(27) { left: 650px; animation-delay: -3.8s; animation-duration: 4s; }
+        .matrix-column:nth-child(28) { left: 675px; animation-delay: -2.5s; animation-duration: 2.8s; }
+        .matrix-column:nth-child(29) { left: 700px; animation-delay: -3.2s; animation-duration: 3.6s; }
+        .matrix-column:nth-child(30) { left: 725px; animation-delay: -2.7s; animation-duration: 3.2s; }
+        .matrix-column:nth-child(31) { left: 750px; animation-delay: -1.8s; animation-duration: 2.7s; }
+        .matrix-column:nth-child(32) { left: 775px; animation-delay: -3.6s; animation-duration: 4.1s; }
+        .matrix-column:nth-child(33) { left: 800px; animation-delay: -2.1s; animation-duration: 3.1s; }
+        .matrix-column:nth-child(34) { left: 825px; animation-delay: -3.4s; animation-duration: 3.7s; }
+        .matrix-column:nth-child(35) { left: 850px; animation-delay: -2.8s; animation-duration: 2.9s; }
+        .matrix-column:nth-child(36) { left: 875px; animation-delay: -3.7s; animation-duration: 4.2s; }
+        .matrix-column:nth-child(37) { left: 900px; animation-delay: -2.3s; animation-duration: 3.3s; }
+        .matrix-column:nth-child(38) { left: 925px; animation-delay: -1.9s; animation-duration: 2.5s; }
+        .matrix-column:nth-child(39) { left: 950px; animation-delay: -3.5s; animation-duration: 3.8s; }
+        .matrix-column:nth-child(40) { left: 975px; animation-delay: -2.6s; animation-duration: 3.4s; }
+
+        .matrix-column:nth-child(odd)::before {
+            content: "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン123456789";
+        }
+
+        .matrix-column:nth-child(even)::before {
+            content: "ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴァィゥェォャュョッABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        }
+
+        .matrix-column:nth-child(3n)::before {
+            content: "アカサタナハマヤラワイキシチニヒミリウクスツヌフムユルエケセテネヘメレオコソトノホモヨロヲン0987654321";
+        }
+
+        .matrix-column:nth-child(4n)::before {
+            content: "ンヲロヨモホノトソコオレメヘネテセケエルユムフヌツスクウリミヒニチシキイワラヤマハナタサカア";
+        }
+
+        .matrix-column:nth-child(5n)::before {
+            content: "ガザダバパギジヂビピグズヅブプゲゼデベペゴゾドボポヴァィゥェォャュョッ!@#$%^&*()_+-=[]{}|;:,.<>?";
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-10%); opacity: 1; }
+            100% { transform: translateY(200%); opacity: 0; }
+        }
+
+        @media (max-width: 768px) {
+            .matrix-column { font-size: 14px; line-height: 16px; width: 18px; }
+        }
+
+        @media (max-width: 480px) {
+            .matrix-column { font-size: 12px; line-height: 14px; width: 15px; }
+        }
+
+        /* --- Rain Background (New) --- */
+        /* From Uiverse.io by SelfMadeSystem */
+        .rain-container::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            background-image: radial-gradient(
+                ellipse 1.5px 2px at 1.5px 50%,
+                #0000 0,
+                #0000 90%,
+                #000 100%
+            );
+            background-size: 25px 8px;
+        }
+
+        .rain-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            --c: #09f;
+            background-color: #000;
+            background-image: radial-gradient(4px 100px at 0px 235px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 235px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 117.5px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 252px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 252px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 126px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 150px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 150px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 75px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 253px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 253px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 126.5px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 204px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 204px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 102px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 134px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 134px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 67px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 179px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 179px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 89.5px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 299px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 299px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 149.5px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 215px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 215px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 107.5px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 281px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 281px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 140.5px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 158px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 158px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 79px, var(--c) 100%, #0000 150%),
+                radial-gradient(4px 100px at 0px 210px, var(--c), #0000),
+                radial-gradient(4px 100px at 300px 210px, var(--c), #0000),
+                radial-gradient(1.5px 1.5px at 150px 105px, var(--c) 100%, #0000 150%);
+            background-size:
+                300px 235px,
+                300px 235px,
+                300px 235px,
+                300px 252px,
+                300px 252px,
+                300px 252px,
+                300px 150px,
+                300px 150px,
+                300px 150px,
+                300px 253px,
+                300px 253px,
+                300px 253px,
+                300px 204px,
+                300px 204px,
+                300px 204px,
+                300px 134px,
+                300px 134px,
+                300px 134px,
+                300px 179px,
+                300px 179px,
+                300px 179px,
+                300px 299px,
+                300px 299px,
+                300px 299px,
+                300px 215px,
+                300px 215px,
+                300px 215px,
+                300px 281px,
+                300px 281px,
+                300px 281px,
+                300px 158px,
+                300px 158px,
+                300px 158px,
+                300px 210px,
+                300px 210px,
+                300px 210px;
+            animation: hi 150s linear infinite;
+        }
+
+        @keyframes hi {
+            0% {
+                background-position:
+                0px 220px,
+                3px 220px,
+                151.5px 337.5px,
+                25px 24px,
+                28px 24px,
+                176.5px 150px,
+                50px 16px,
+                53px 16px,
+                201.5px 91px,
+                75px 224px,
+                78px 224px,
+                226.5px 350.5px,
+                100px 19px,
+                103px 19px,
+                251.5px 121px,
+                125px 120px,
+                128px 120px,
+                276.5px 187px,
+                150px 31px,
+                153px 31px,
+                301.5px 120.5px,
+                175px 235px,
+                178px 235px,
+                326.5px 384.5px,
+                200px 121px,
+                203px 121px,
+                351.5px 228.5px,
+                225px 224px,
+                228px 224px,
+                376.5px 364.5px,
+                250px 26px,
+                253px 26px,
+                401.5px 105px,
+                275px 75px,
+                278px 75px,
+                426.5px 180px;
+            }
+
+            to {
+                background-position:
+                0px 6800px,
+                3px 6800px,
+                151.5px 6917.5px,
+                25px 13632px,
+                28px 13632px,
+                176.5px 13758px,
+                50px 5416px,
+                53px 5416px,
+                201.5px 5491px,
+                75px 17175px,
+                78px 17175px,
+                226.5px 17301.5px,
+                100px 5119px,
+                103px 5119px,
+                251.5px 5221px,
+                125px 8428px,
+                128px 8428px,
+                276.5px 8495px,
+                150px 9876px,
+                153px 9876px,
+                301.5px 9965.5px,
+                175px 13391px,
+                178px 13391px,
+                326.5px 13540.5px,
+                200px 14741px,
+                203px 14741px,
+                351.5px 14848.5px,
+                225px 18770px,
+                228px 18770px,
+                376.5px 18910.5px,
+                250px 5082px,
+                253px 5082px,
+                401.5px 5161px,
+                275px 6375px,
+                278px 6375px,
+                426.5px 6480px;
+            }
+        }
+
+        /* --- Animated Gradient Background --- */
+        .animated-gradient {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            opacity: 0.15; /* Subtle in light mode */
+        }
+        .dark .animated-gradient {
+            background: linear-gradient(-45deg, #1a1a2e, #16213e, #0f3460, #533483);
+            background-size: 400% 400%;
+            opacity: 1;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* --- BB8 Toggle Switch Styles --- */
+        /* From Uiverse.io by Galahhad */
+        .bb8-toggle {
+            --toggle-size: 7px; /* Scaled down for navbar */
+            --toggle-width: 10.625em;
+            --toggle-height: 5.625em;
+            --toggle-offset: calc((var(--toggle-height) - var(--bb8-diameter)) / 2);
+            --toggle-bg: linear-gradient(#2c4770, #070e2b 35%, #628cac 50% 70%, #a6c5d4) no-repeat;
+            --bb8-diameter: 4.375em;
+            --radius: 99em;
+            --transition: 0.4s;
+            --accent: #de7d2f;
+            --bb8-bg: #fff;
+            margin-top: var(--margin-top-for-head);
+            font-size: var(--toggle-size);
+            cursor: pointer;
+            position: relative;
+            display: inline-block;
+            margin-left: 1rem;
+        }
+
+        .bb8-toggle,
+        .bb8-toggle *,
+        .bb8-toggle *::before,
+        .bb8-toggle *::after {
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+
+        .bb8-toggle__checkbox {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            display: none;
+        }
+
+        .bb8-toggle__container {
+            width: var(--toggle-width);
+            height: var(--toggle-height);
+            background: var(--toggle-bg);
+            background-size: 100% 11.25em;
+            background-position-y: -5.625em;
+            border-radius: var(--radius);
+            position: relative;
+            -webkit-transition: var(--transition);
+            -o-transition: var(--transition);
+            transition: var(--transition);
+        }
+
+        .bb8 {
+            display: -webkit-box;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -ms-flex-direction: column;
+            flex-direction: column;
+            -webkit-box-align: center;
+            -ms-flex-align: center;
+            align-items: center;
+            position: absolute;
+            top: calc(var(--toggle-offset) - 1.688em + 0.188em);
+            left: var(--toggle-offset);
+            -webkit-transition: var(--transition);
+            -o-transition: var(--transition);
+            transition: var(--transition);
+            z-index: 2;
+        }
+
+        .bb8__head-container {
+            position: relative;
+            -webkit-transition: var(--transition);
+            -o-transition: var(--transition);
+            transition: var(--transition);
+            z-index: 2;
+            -webkit-transform-origin: 1.25em 3.75em;
+            -ms-transform-origin: 1.25em 3.75em;
+            transform-origin: 1.25em 3.75em;
+        }
+
+        .bb8__head {
+            overflow: hidden;
+            margin-bottom: -0.188em;
+            width: 2.5em;
+            height: 1.688em;
+            background: linear-gradient(
+                transparent 0.063em,
+                dimgray 0.063em 0.313em,
+                transparent 0.313em 0.375em,
+                var(--accent) 0.375em 0.5em,
+                transparent 0.5em 1.313em,
+                silver 1.313em 1.438em,
+                transparent 1.438em
+            ),
+            linear-gradient(
+                45deg,
+                transparent 0.188em,
+                var(--bb8-bg) 0.188em 1.25em,
+                transparent 1.25em
+            ),
+            linear-gradient(
+                -45deg,
+                transparent 0.188em,
+                var(--bb8-bg) 0.188em 1.25em,
+                transparent 1.25em
+            ),
+            linear-gradient(var(--bb8-bg) 1.25em, transparent 1.25em);
+            border-radius: var(--radius) var(--radius) 0 0;
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 0.063em 0.125em gray);
+        }
+
+        .bb8__head::before {
+            content: "";
+            position: absolute;
+            width: 0.563em;
+            height: 0.563em;
+            background: radial-gradient(
+                0.125em circle at 0.25em 0.375em,
+                red,
+                transparent
+            ),
+            radial-gradient(
+                0.063em circle at 0.375em 0.188em,
+                var(--bb8-bg) 50%,
+                transparent 100%
+            ),
+            linear-gradient(45deg, #000 0.188em, dimgray 0.313em 0.375em, #000 0.5em);
+            border-radius: var(--radius);
+            top: 0.413em;
+            left: 50%;
+            transform: translate(-50%);
+            box-shadow: 0 0 0 0.089em lightgray, 0.563em 0.281em 0 -0.148em,
+                0.563em 0.281em 0 -0.1em var(--bb8-bg), 0.563em 0.281em 0 -0.063em;
+            z-index: 1;
+            transition: var(--transition);
+        }
+
+        .bb8__head::after {
+            content: "";
+            position: absolute;
+            bottom: 0.375em;
+            left: 0;
+            width: 100%;
+            height: 0.188em;
+            background: linear-gradient(
+                to right,
+                var(--accent) 0.125em,
+                transparent 0.125em 0.188em,
+                var(--accent) 0.188em 0.313em,
+                transparent 0.313em 0.375em,
+                var(--accent) 0.375em 0.938em,
+                transparent 0.938em 1em,
+                var(--accent) 1em 1.125em,
+                transparent 1.125em 1.875em,
+                var(--accent) 1.875em 2em,
+                transparent 2em 2.063em,
+                var(--accent) 2.063em 2.25em,
+                transparent 2.25em 2.313em,
+                var(--accent) 2.313em 2.375em,
+                transparent 2.375em 2.438em,
+                var(--accent) 2.438em
+            );
+            transition: var(--transition);
+        }
+
+        .bb8__antenna {
+            position: absolute;
+            transform: translateY(-90%);
+            width: 0.059em;
+            border-radius: var(--radius) var(--radius) 0 0;
+            transition: var(--transition);
+        }
+
+        .bb8__antenna:nth-child(1) {
+            height: 0.938em;
+            right: 0.938em;
+            background: linear-gradient(#000 0.188em, silver 0.188em);
+        }
+
+        .bb8__antenna:nth-child(2) {
+            height: 0.375em;
+            left: 50%;
+            transform: translate(-50%, -90%);
+            background: silver;
+        }
+
+        .bb8__body {
+            width: 4.375em;
+            height: 4.375em;
+            background: var(--bb8-bg);
+            border-radius: var(--radius);
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition);
+            z-index: 1;
+            transform: rotate(45deg);
+            background: linear-gradient(
+                -90deg,
+                var(--bb8-bg) 4%,
+                var(--accent) 4% 10%,
+                transparent 10% 90%,
+                var(--accent) 90% 96%,
+                var(--bb8-bg) 96%
+            ),
+            linear-gradient(
+                var(--bb8-bg) 4%,
+                var(--accent) 4% 10%,
+                transparent 10% 90%,
+                var(--accent) 90% 96%,
+                var(--bb8-bg) 96%
+            ),
+            linear-gradient(
+                to right,
+                transparent 2.156em,
+                silver 2.156em 2.219em,
+                transparent 2.188em
+            ),
+            linear-gradient(
+                transparent 2.156em,
+                silver 2.156em 2.219em,
+                transparent 2.188em
+            );
+            background-color: var(--bb8-bg);
+        }
+
+        .bb8__body::after {
+            content: "";
+            bottom: 1.5em;
+            left: 0.563em;
+            position: absolute;
+            width: 0.188em;
+            height: 0.188em;
+            background: rgb(236, 236, 236);
+            color: rgb(236, 236, 236);
+            border-radius: 50%;
+            box-shadow: 0.875em 0.938em, 0 -1.25em, 0.875em -2.125em,
+                2.125em -2.125em, 3.063em -1.25em, 3.063em 0, 2.125em 0.938em;
+        }
+
+        .bb8__body::before {
+            content: "";
+            width: 2.625em;
+            height: 2.625em;
+            position: absolute;
+            border-radius: 50%;
+            z-index: 0.1;
+            overflow: hidden;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 0.313em solid var(--accent);
+            background: radial-gradient(
+                1em circle at center,
+                rgb(236, 236, 236) 50%,
+                transparent 51%
+            ),
+            radial-gradient(1.25em circle at center, var(--bb8-bg) 50%, transparent 51%),
+            linear-gradient(
+                -90deg,
+                transparent 42%,
+                var(--accent) 42% 58%,
+                transparent 58%
+            ),
+            linear-gradient(var(--bb8-bg) 42%, var(--accent) 42% 58%, var(--bb8-bg) 58%);
+        }
+
+        .artificial__hidden {
+            position: absolute;
+            border-radius: inherit;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .bb8__shadow {
+            content: "";
+            width: var(--bb8-diameter);
+            height: 20%;
+            border-radius: 50%;
+            background: #3a271c;
+            box-shadow: 0.313em 0 3.125em #3a271c;
+            opacity: 0.25;
+            position: absolute;
+            bottom: 0;
+            left: calc(var(--toggle-offset) - 0.938em);
+            transition: var(--transition);
+            transform: skew(-70deg);
+            z-index: 1;
+        }
+
+        .bb8-toggle__scenery {
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            position: relative;
+            border-radius: inherit;
+        }
+
+        .bb8-toggle__scenery::before {
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 30%;
+            bottom: 0;
+            background: #b18d71;
+            z-index: 1;
+        }
+
+        .bb8-toggle__cloud {
+            z-index: 1;
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        .bb8-toggle__cloud:nth-last-child(1) {
+            width: 0.875em;
+            height: 0.625em;
+            filter: blur(0.125em) drop-shadow(0.313em 0.313em #ffffffae)
+                drop-shadow(-0.625em 0 #fff) drop-shadow(-0.938em -0.125em #fff);
+            right: 1.875em;
+            top: 2.813em;
+            background: linear-gradient(to top right, #ffffffae, #ffffffae);
+            transition: var(--transition);
+        }
+
+        .bb8-toggle__cloud:nth-last-child(2) {
+            top: 0.625em;
+            right: 4.375em;
+            width: 0.875em;
+            height: 0.375em;
+            background: #dfdedeae;
+            filter: blur(0.125em) drop-shadow(-0.313em -0.188em #e0dfdfae)
+                drop-shadow(-0.625em -0.188em #bbbbbbae) drop-shadow(-1em 0.063em #cfcfcfae);
+            transition: 0.6s;
+        }
+
+        .bb8-toggle__cloud:nth-last-child(3) {
+            top: 1.25em;
+            right: 0.938em;
+            width: 0.875em;
+            height: 0.375em;
+            background: #ffffffae;
+            filter: blur(0.125em) drop-shadow(0.438em 0.188em #ffffffae)
+                drop-shadow(-0.625em 0.313em #ffffffae);
+            transition: 0.8s;
+        }
+
+        .gomrassen,
+        .hermes,
+        .chenini {
+            position: absolute;
+            border-radius: var(--radius);
+            background: linear-gradient(#fff, #6e8ea2);
+            top: 100%;
+        }
+
+        .gomrassen {
+            left: 0.938em;
+            width: 1.875em;
+            height: 1.875em;
+            box-shadow: 0 0 0.188em #ffffff52, 0 0 0.188em #6e8ea24b;
+            transition: var(--transition);
+        }
+
+        .gomrassen::before,
+        .gomrassen::after {
+            content: "";
+            position: absolute;
+            border-radius: inherit;
+            box-shadow: inset 0 0 0.063em rgb(140, 162, 169);
+            background: rgb(184, 196, 200);
+        }
+
+        .gomrassen::before {
+            left: 0.313em;
+            top: 0.313em;
+            width: 0.438em;
+            height: 0.438em;
+        }
+
+        .gomrassen::after {
+            width: 0.25em;
+            height: 0.25em;
+            left: 1.25em;
+            top: 0.75em;
+        }
+
+        .hermes {
+            left: 3.438em;
+            width: 0.625em;
+            height: 0.625em;
+            box-shadow: 0 0 0.125em #ffffff52, 0 0 0.125em #6e8ea24b;
+            transition: 0.6s;
+        }
+
+        .chenini {
+            left: 4.375em;
+            width: 0.5em;
+            height: 0.5em;
+            box-shadow: 0 0 0.125em #ffffff52, 0 0 0.125em #6e8ea24b;
+            transition: 0.8s;
+        }
+
+        .tatto-1,
+        .tatto-2 {
+            position: absolute;
+            width: 1.25em;
+            height: 1.25em;
+            border-radius: var(--radius);
+        }
+
+        .tatto-1 {
+            background: #fefefe;
+            right: 3.125em;
+            top: 0.625em;
+            box-shadow: 0 0 0.438em #fdf4e1;
+            transition: var(--transition);
+        }
+
+        .tatto-2 {
+            background: linear-gradient(#e6ac5c, #d75449);
+            right: 1.25em;
+            top: 2.188em;
+            box-shadow: 0 0 0.438em #e6ad5c3d, 0 0 0.438em #d755494f;
+            transition: 0.7s;
+        }
+
+        .bb8-toggle__star {
+            position: absolute;
+            width: 0.063em;
+            height: 0.063em;
+            background: #fff;
+            border-radius: var(--radius);
+            filter: drop-shadow(0 0 0.063em #fff);
+            color: #fff;
+            top: 100%;
+        }
+
+        .bb8-toggle__star:nth-child(1) {
+            left: 3.75em;
+            box-shadow: 1.25em 0.938em, -1.25em 2.5em, 0 1.25em, 1.875em 0.625em,
+                -3.125em 1.875em, 1.25em 2.813em;
+            transition: 0.2s;
+        }
+
+        .bb8-toggle__star:nth-child(2) {
+            left: 4.688em;
+            box-shadow: 0.625em 0, 0 0.625em, -0.625em -0.625em, 0.625em 0.938em,
+                -3.125em 1.25em, 1.25em -1.563em;
+            transition: 0.3s;
+        }
+
+        .bb8-toggle__star:nth-child(3) {
+            left: 5.313em;
+            box-shadow: -0.625em -0.625em, -2.188em 1.25em, -2.188em 0,
+                -3.75em -0.625em, -3.125em -0.625em, -2.5em -0.313em, 0.75em -0.625em;
+            transition: var(--transition);
+        }
+
+        .bb8-toggle__star:nth-child(4) {
+            left: 1.875em;
+            width: 0.125em;
+            height: 0.125em;
+            transition: 0.5s;
+        }
+
+        .bb8-toggle__star:nth-child(5) {
+            left: 5em;
+            width: 0.125em;
+            height: 0.125em;
+            transition: 0.6s;
+        }
+
+        .bb8-toggle__star:nth-child(6) {
+            left: 2.5em;
+            width: 0.125em;
+            height: 0.125em;
+            transition: 0.7s;
+        }
+
+        .bb8-toggle__star:nth-child(7) {
+            left: 3.438em;
+            width: 0.125em;
+            height: 0.125em;
+            transition: 0.8s;
+        }
+
+        /* actions */
+
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(1) { top: 0.625em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(2) { top: 1.875em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(3) { top: 1.25em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(4) { top: 3.438em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(5) { top: 3.438em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(6) { top: 0.313em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__star:nth-child(7) { top: 1.875em; }
+
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8-toggle__cloud { right: -100%; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .gomrassen { top: 0.938em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .hermes { top: 2.5em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .chenini { top: 2.75em; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container { background-position-y: 0; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .tatto-1 { top: 100%; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .tatto-2 { top: 100%; }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8 { left: calc(100% - var(--bb8-diameter) - var(--toggle-offset)); }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8__shadow { left: calc(100% - var(--bb8-diameter) - var(--toggle-offset) + 0.938em); transform: skew(70deg); }
+        .bb8-toggle__checkbox:checked + .bb8-toggle__container .bb8__body { transform: rotate(225deg); }
+
+        .bb8-toggle__checkbox:hover + .bb8-toggle__container .bb8__head::before { left: 100%; }
+        .bb8-toggle__checkbox:not(:checked):hover + .bb8-toggle__container .bb8__antenna:nth-child(1) { right: 1.5em; }
+        .bb8-toggle__checkbox:hover + .bb8-toggle__container .bb8__antenna:nth-child(2) { left: 0.938em; }
+        .bb8-toggle__checkbox:hover + .bb8-toggle__container .bb8__head::after { background-position: 1.375em 0; }
+        .bb8-toggle__checkbox:checked:hover + .bb8-toggle__container .bb8__head::before { left: 0; }
+        .bb8-toggle__checkbox:checked:hover + .bb8-toggle__container .bb8__antenna:nth-child(2) { left: calc(100% - 0.938em); }
+        .bb8-toggle__checkbox:checked:hover + .bb8-toggle__container .bb8__head::after { background-position: -1.375em 0; }
+        
+        .bb8-toggle__checkbox:active + .bb8-toggle__container .bb8__head-container { transform: rotate(25deg); }
+        .bb8-toggle__checkbox:checked:active + .bb8-toggle__container .bb8__head-container { transform: rotate(-25deg); }
+        
+        .bb8:hover .bb8__head::before, .bb8:hover .bb8__antenna:nth-child(2) { left: 50% !important; }
+        .bb8:hover .bb8__antenna:nth-child(1) { right: 0.938em !important; }
+        .bb8:hover .bb8__head::after { background-position: 0 0 !important; }
+
+        /* --- Particle Effects (New) --- */
+        @keyframes fly-out {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        }
+        .effect-particle {
+            position: fixed;
+            pointer-events: none;
+            border-radius: 50%;
+            animation: fly-out 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+        
+        // --- Visual Effects Helper ---
+        const triggerParticles = (e, type) => {
+            const rect = e.target.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            const count = 40; 
+            
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement('div');
+                p.classList.add('effect-particle');
+                
+                // Physics variables
+                const angle = Math.random() * Math.PI * 2;
+                // Distribute velocity: some fast, some slow for depth
+                const velocity = Math.random() * 150 + 50; 
+                const tx = Math.cos(angle) * velocity + 'px';
+                const ty = Math.sin(angle) * velocity + 'px';
+                
+                p.style.setProperty('--tx', tx);
+                p.style.setProperty('--ty', ty);
+                
+                p.style.left = x + 'px';
+                p.style.top = y + 'px';
+                
+                // Type configuration
+                let color = '#fff';
+                let size = Math.random() * 6 + 3 + 'px';
+                
+                if (type === 'orange') { // AUTHORIZED (Fireworks style)
+                    // Mix of Orange, Yellow, Red
+                    const hue = Math.random() < 0.5 ? Math.random() * 30 + 15 : 0; 
+                    color = `hsl(${hue}, 100%, 50%)`;
+                } else if (type === 'blue') { // RENEWED
+                    color = `hsl(${Math.random() * 50 + 190}, 90%, 60%)`;
+                } else if (type === 'green') { // FIXED
+                    color = `hsl(${Math.random() * 40 + 100}, 90%, 50%)`;
+                } else if (type === 'gold') { // PRICE
+                    color = `hsl(${Math.random() * 20 + 40}, 100%, 60%)`;
+                } else if (type === 'red') { // DELETED
+                    color = `hsl(${Math.random() * 20 + 340}, 90%, 50%)`;
+                } else if (type === 'teal') { // NAFS
+                    color = `hsl(${Math.random() * 30 + 160}, 90%, 50%)`;
+                }
+                
+                p.style.backgroundColor = color;
+                p.style.width = size;
+                p.style.height = size;
+                
+                document.body.appendChild(p);
+                
+                // Cleanup DOM
+                setTimeout(() => p.remove(), 1000);
+            }
+        };
+
+        // --- Shared Components ---
+        const UploadIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-upload-cloud mx-auto h-12 w-12 text-gray-300">
+                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+                <path d="M12 12v9"/>
+                <path d="m16 16-4-4-4 4"/>
+            </svg>
+        );
+
+        const AlertIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" x2="12" y1="8" y2="12"/>
+                <line x1="12" x2="12.01" y1="16" y2="16"/>
+            </svg>
+        );
+
+        const CheckIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className || "text-green-500"}>
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        );
+
+        const FileIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                <polyline points="14 2 14 8 20 8"/>
+            </svg>
+        );
+
+        const TableIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>
+            </svg>
+        );
+
+        const CheckSquareIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 11 12 14 22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+        );
+
+        const ConstructionIcon = () => (
+             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 mx-auto">
+                <rect x="2" y="6" width="20" height="8" rx="1"/>
+                <path d="M17 14v7"/>
+                <path d="M7 14v7"/>
+                <path d="M17 3v3"/>
+                <path d="M7 3v3"/>
+                <path d="M10 14 2.3 6.3"/>
+                <path d="m14 6 7.7 7.7"/>
+                <path d="m8 6 8 8"/>
+            </svg>
+        );
+
+        const FilterIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+        );
+
+        const SortIcon = ({ direction }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${direction === 'asc' ? 'rotate-180' : ''}`}>
+                <path d="m6 9 6 6 6-6"/>
+            </svg>
+        );
+
+        const EyeIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+        );
+
+        const EyeOffIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                <line x1="2" x2="22" y1="2" y2="22"/>
+            </svg>
+        );
+
+        const FormulaIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 18h16"/>
+                <path d="M4 14a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/>
+                <path d="M12 2v10"/>
+                <path d="m15 5-3-3-3 3"/>
+            </svg>
+        );
+
+        const MailIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+        );
+
+        const EditIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                <path d="m15 5 4 4"/>
+            </svg>
+        );
+
+        const TrashIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M3 6h18"/>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+            </svg>
+        );
+        
+        const MonitorIcon = () => (
+             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="14" x="2" y="3" rx="2"/>
+                <line x1="8" x2="16" y1="21" y2="21"/>
+                <line x1="12" x2="12" y1="17" y2="21"/>
+            </svg>
+        );
+
+        const PieChartIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+            </svg>
+        );
+
+        const CopyableSqr = ({ sqr, isLastCopied, onCopy, customClass }) => {
+            const [copied, setCopied] = useState(false);
+
+            const handleCopy = (e) => {
+                e.stopPropagation();
+                if (!sqr) return;
+                
+                if (onCopy) onCopy();
+
+                try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = sqr;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    textArea.style.top = "0";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    if (successful) {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                    }
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                    if (navigator.clipboard) {
+                          navigator.clipboard.writeText(sqr).then(() => {
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                        }).catch(e => console.error(e));
+                    }
+                }
+            };
+
+            let containerClasses = "cursor-pointer group flex items-center relative select-none transition-all duration-200 px-2 py-1 rounded-md ";
+            let textClasses = "font-mono font-medium ";
+
+            if (copied) {
+                containerClasses += "bg-green-100 ring-1 ring-green-300";
+                textClasses += "text-green-700";
+            } else if (isLastCopied) {
+                containerClasses += "bg-blue-100 ring-2 ring-blue-300 shadow-sm";
+                textClasses += "text-blue-800 font-bold";
+            } else if (customClass) {
+                containerClasses += customClass + " hover:brightness-95";
+            } else {
+                containerClasses += "hover:bg-gray-200/50 dark:hover:bg-gray-700/50";
+                textClasses += "text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 border-b border-dotted border-gray-400 dark:border-gray-500 group-hover:border-transparent";
+            }
+
+            return (
+                <div 
+                    onClick={handleCopy} 
+                    className={containerClasses}
+                    title="Click to copy"
+                >
+                    <span className={textClasses}>
+                        {sqr || "N/A"}
+                    </span>
+                    
+                    {copied && (
+                        <span className="absolute left-full ml-2 text-xs bg-black text-white px-2 py-1 rounded shadow-lg whitespace-nowrap z-10 animate-pulse">
+                            Copied!
+                        </span>
+                    )}
+                    
+                    {isLastCopied && !copied && (
+                        <span className="absolute left-full ml-2 text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200 whitespace-nowrap z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Last Copied
+                        </span>
+                    )}
+                </div>
+            );
+        };
+        
+        // --- Background Component ---
+        const MatrixBackground = () => {
+             // Generate specific Katakana sequence to fill screen
+             // Repeating the sequence enough times to cover a large resolution (e.g. 1000 items)
+             const katakana = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ";
+             
+             const [matrixContent] = useState(() => {
+                 // Create a large enough array to fill the grid cells
+                 const repeated = Array(20).fill(katakana).join(""); 
+                 return repeated.split("");
+             });
+
+            return (
+                <div className="jp-matrix">
+                     {matrixContent.map((char, i) => (
+                         <span key={i}>{char}</span>
+                     ))}
+                </div>
+            )
+        }
+
+        const GradientBackground = () => (
+            <div className="animated-gradient"></div>
+        );
+
+        const HexBackground = () => (
+            <div className="hex-background"></div>
+        );
+
+        const RainBackground = () => (
+            <div className="rain-container"></div>
+        );
+
+        const MatrixRainBackground = () => {
+            // Programmatically generate the 40 columns for 4 patterns to ensure full coverage
+            return (
+                <div className="matrix-container">
+                    {[...Array(6)].map((_, i) => ( // Increased to 6 to ensure wide screen coverage
+                        <div key={i} className="matrix-pattern">
+                            {[...Array(40)].map((_, j) => (
+                                <div key={j} className="matrix-column"></div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // --- Feature 1: STS Report Tool (Replaces Validator) ---
+        const StsReportTool = () => {
+            const [file, setFile] = useState(null);
+            const [processedData, setProcessedData] = useState(null);
+            const [filteredData, setFilteredData] = useState(null); 
+            const [error, setError] = useState(null);
+            const [isDragging, setIsDragging] = useState(false);
+            const [duplicates, setDuplicates] = useState({ sqr: new Set(), quote: new Set() });
+            const [doneRows, setDoneRows] = useState(new Set());
+            const [comments, setComments] = useState({});
+            const [showEmptyQuotesOnly, setShowEmptyQuotesOnly] = useState(false); 
+            const [isFilterOpen, setIsFilterOpen] = useState(false); 
+            const [sortOrder, setSortOrder] = useState('asc'); 
+            const [lastCopiedId, setLastCopiedId] = useState(null); 
+
+            const filterDropdownRef = useRef(null);
+            const fileInputRef = useRef(null);
+
+            // --- Persistence Logic ---
+            useEffect(() => {
+                // Load from localStorage on mount
+                try {
+                    const savedData = localStorage.getItem('sts_data');
+                    const savedDone = localStorage.getItem('sts_done');
+                    const savedComments = localStorage.getItem('sts_comments');
+                    const savedDups = localStorage.getItem('sts_dups');
+
+                    if (savedData) {
+                        const parsed = JSON.parse(savedData);
+                        setProcessedData(parsed);
+                        if (savedDups) {
+                            const d = JSON.parse(savedDups);
+                            setDuplicates({ 
+                                sqr: new Set(d.sqr), 
+                                quote: new Set(d.quote) 
+                            });
+                        }
+                    }
+                    if (savedDone) setDoneRows(new Set(JSON.parse(savedDone)));
+                    if (savedComments) setComments(JSON.parse(savedComments));
+                } catch (e) {
+                    console.error("Failed to load STS data", e);
+                }
+            }, []);
+
+            useEffect(() => {
+                // Save to localStorage on change
+                if (processedData) {
+                    localStorage.setItem('sts_data', JSON.stringify(processedData));
+                    // Save duplicates too so we don't have to recalc or lose them
+                    localStorage.setItem('sts_dups', JSON.stringify({
+                        sqr: Array.from(duplicates.sqr),
+                        quote: Array.from(duplicates.quote)
+                    }));
+                }
+                localStorage.setItem('sts_done', JSON.stringify(Array.from(doneRows)));
+                localStorage.setItem('sts_comments', JSON.stringify(comments));
+            }, [processedData, doneRows, comments, duplicates]);
+
+            const clearStorage = () => {
+                localStorage.removeItem('sts_data');
+                localStorage.removeItem('sts_done');
+                localStorage.removeItem('sts_comments');
+                localStorage.removeItem('sts_dups');
+            };
+            // --------------------------
+
+             // Close dropdown when clicking outside
+             useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+                        setIsFilterOpen(false);
+                    }
+                };
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, []);
+
+
+            const COLUMN_MAPPING = [
+                { name: "Line Valid From", search: ["Line Valid From", "Valid From"] },        
+                { name: "SQR #", search: ["SQR #", "SQR Number", "SQR No"], copyable: true },                 
+                { name: "SQR Type", search: ["SQR Type", "Type"] },                             
+                { name: "DBP", search: ["DBP", "DBP Price"] },                                 
+                { name: "Line #", search: ["Line #", "Line"] },                                 
+                { name: "Line Supplier Quote #", search: ["Line Supplier Quote #", "Supplier Quote #"], copyable: true }, 
+                { name: "Supplier Part #", search: ["Supplier Part #", "Part #", "Part No"] },  
+                { name: "Line Status", search: ["Line Status", "Status"] }                      
+            ];
+
+            const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+            const handleDragLeave = () => { setIsDragging(false); };
+            const handleDrop = (e) => {
+                e.preventDefault(); setIsDragging(false);
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile) processFile(droppedFile);
+            };
+            const handleFileSelect = (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile) processFile(selectedFile);
+            };
+
+            const processFile = (inputFile) => {
+                setFile(inputFile);
+                setError(null);
+                setProcessedData(null);
+                setFilteredData(null);
+                setDoneRows(new Set());
+                setComments({});
+                setShowEmptyQuotesOnly(false); // Reset filter on new file
+                clearStorage(); // Clear old storage when uploading new file
+
+                const fileName = inputFile.name.toLowerCase();
+                
+                if (fileName.endsWith('.csv')) {
+                    Papa.parse(inputFile, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            if (results.data && results.data.length > 0) {
+                                reorderAndFilter(results.data);
+                            } else {
+                                setError("File appears empty.");
+                            }
+                        },
+                        error: (err) => setError("Error parsing CSV: " + err.message)
+                    });
+                } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                            
+                            if (jsonData.length === 0) {
+                                setError("Excel file appears to be empty or data format is unrecognizable.");
+                                return;
+                            }
+                            reorderAndFilter(jsonData);
+                        } catch (err) {
+                            console.error(err);
+                            setError("Error parsing Excel file.");
+                        }
+                    };
+                    reader.readAsArrayBuffer(inputFile);
+                } else {
+                    setError("Unsupported file format. Please upload .csv, .xlsx, or .xls");
+                }
+            };
+
+            const reorderAndFilter = (rawData) => {
+                // 1. Find matching keys for our desired columns
+                const headers = Object.keys(rawData[0]);
+                const map = {};
+                
+                COLUMN_MAPPING.forEach(col => {
+                    const match = headers.find(h => col.search.some(s => h.trim().toUpperCase() === s.toUpperCase()));
+                    if (match) map[col.name] = match;
+                });
+
+                // 2. Build new data array
+                const newData = rawData.map((row, index) => {
+                    const newRow = { _id: index };
+                    COLUMN_MAPPING.forEach(col => {
+                        // TRIM VALUES HERE
+                        const val = row[map[col.name]];
+                        newRow[col.name] = val ? String(val).trim() : ""; 
+                    });
+                    return newRow;
+                });
+
+                // 3. Identify Duplicates (SQR # and Supplier Quote #)
+                const sqrCounts = {};
+                const quoteCounts = {};
+                newData.forEach(row => {
+                    const s = row["SQR #"];
+                    const q = row["Line Supplier Quote #"];
+                    if (s) sqrCounts[s] = (sqrCounts[s] || 0) + 1;
+                    if (q) quoteCounts[q] = (quoteCounts[q] || 0) + 1;
+                });
+
+                const dupSqr = new Set();
+                const dupQuote = new Set();
+                Object.keys(sqrCounts).forEach(k => { if (sqrCounts[k] > 1) dupSqr.add(k); });
+                Object.keys(quoteCounts).forEach(k => { if (quoteCounts[k] > 1) dupQuote.add(k); });
+
+                setDuplicates({ sqr: dupSqr, quote: dupQuote });
+                
+                // Sort initially
+                const sorted = sortData(newData, 'asc');
+                setProcessedData(sorted);
+            };
+
+            // Sort Function
+            const sortData = (data, direction) => {
+                return [...data].sort((a, b) => {
+                    const dateA = new Date(a["Line Valid From"] || "1900-01-01");
+                    const dateB = new Date(b["Line Valid From"] || "1900-01-01");
+                    // Handle invalid dates gracefully by putting them at end
+                    const valA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+                    const valB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+                    
+                    return direction === 'asc' ? valA - valB : valB - valA;
+                });
+            };
+
+            const toggleSort = () => {
+                const newDirection = sortOrder === 'asc' ? 'desc' : 'asc';
+                setSortOrder(newDirection);
+                if (processedData) {
+                    setProcessedData(sortData(processedData, newDirection)); // Sort processedData directly
+                }
+            };
+
+
+            // Filter Logic Effect
+            useEffect(() => {
+                if (processedData) {
+                    let filtered = processedData;
+                    if (showEmptyQuotesOnly) {
+                        filtered = processedData.filter(row => {
+                            const val = row["Line Supplier Quote #"];
+                            return !val || String(val).trim() === "";
+                        });
+                    }
+                    // Apply current sort to filtered view as well (redundant if processedData is sorted but safe)
+                    setFilteredData(sortData(filtered, sortOrder));
+                }
+            }, [showEmptyQuotesOnly, processedData, sortOrder]);
+
+
+            const toggleDone = (id) => {
+                setDoneRows(prev => {
+                    const newSet = new Set(prev);
+                    if (newSet.has(id)) newSet.delete(id);
+                    else newSet.add(id);
+                    return newSet;
+                });
+            };
+
+            const updateComment = (id, val) => {
+                setComments(prev => ({ ...prev, [id]: val }));
+            };
+
+            // Header Colors matching Macro - UPDATED FOR DARK MODE
+            const headerColors = {
+                "Line Valid From": "bg-pink-200 text-pink-800 dark:bg-pink-900 dark:text-pink-100", 
+                "SQR #": "bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-100",          
+                "SQR Type": "bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-100",        
+                "DBP": "bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-100",                  
+                "Line #": "bg-orange-200 text-orange-800 dark:bg-orange-900 dark:text-orange-100",        
+                "Line Supplier Quote #": "bg-pink-200 text-pink-800 dark:bg-pink-900 dark:text-pink-100", 
+                "Supplier Part #": "bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
+                "Line Status": "bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-100",        
+                "Comment": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100",        
+                "DONE!": "bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-100"             
+            };
+
+            return (
+                <div className="max-w-[98%] mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+                    <div className="text-center space-y-2">
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">STS Report Tool</h1>
+                        <p className="text-gray-500 dark:text-gray-400">Reorders columns, highlights duplicates, and provides checklist workflow.</p>
+                        {processedData && (
+                            <p className="text-xs text-green-600 dark:text-green-400 font-semibold animate-pulse">Auto-save enabled</p>
+                        )}
+                    </div>
+
+                    {!processedData && (
+                        <div 
+                            onClick={() => fileInputRef.current.click()}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={`
+                                relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200
+                                ${isDragging ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white/60 dark:bg-gray-800/60'}
+                                backdrop-blur-sm
+                            `}
+                        >
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleFileSelect} 
+                                accept=".csv,.xlsx,.xls" 
+                                className="hidden" 
+                            />
+                            <div className="space-y-4">
+                                <div className="flex justify-center">
+                                    <UploadIcon />
+                                </div>
+                                <div>
+                                    <p className="text-lg font-medium text-gray-900 dark:text-white">Click to upload STS Excel/CSV</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-md flex items-start space-x-3">
+                            <AlertIcon />
+                            <p className="text-red-700 dark:text-red-400">{error}</p>
+                        </div>
+                    )}
+
+                    {filteredData && (
+                        <div className="space-y-6">
+                            {/* Summary */}
+                            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md p-4 rounded-xl shadow-sm border border-gray-100/50 dark:border-gray-700/50 flex justify-between items-center transition-colors">
+                                <div className="flex space-x-6">
+                                    <div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Rows Displayed</p>
+                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{filteredData.length}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-green-500 dark:text-green-400 font-semibold uppercase">Completed</p>
+                                        <p className="text-xl font-bold text-green-600 dark:text-green-400">{doneRows.size}</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        clearStorage();
+                                        setFile(null);
+                                        setProcessedData(null);
+                                        setFilteredData(null);
+                                        setDoneRows(new Set());
+                                        setComments({});
+                                        setShowEmptyQuotesOnly(false);
+                                    }}
+                                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 underline"
+                                >
+                                    Reset / Upload New
+                                </button>
+                            </div>
+
+                            {/* Data Table */}
+                            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 overflow-hidden transition-colors" style={{ minHeight: '400px' }}>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm border-collapse">
+                                        <thead>
+                                            <tr>
+                                                {COLUMN_MAPPING.map(col => (
+                                                    <th key={col.name} className={`px-6 py-3 text-xs font-bold uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 ${headerColors[col.name]} ${col.name === "Line Valid From" ? "cursor-pointer hover:brightness-95" : ""}`} onClick={col.name === "Line Valid From" ? toggleSort : undefined}>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center space-x-1">
+                                                                <span>{col.name}</span>
+                                                                {col.name === "Line Valid From" && <SortIcon direction={sortOrder} />}
+                                                            </div>
+                                                            
+                                                            {col.name === "Line Supplier Quote #" && (
+                                                                <div className="relative ml-2" ref={filterDropdownRef} onClick={(e) => e.stopPropagation()}>
+                                                                                <button onClick={() => setIsFilterOpen(!isFilterOpen)} className="hover:bg-black/10 dark:hover:bg-white/10 p-1 rounded">
+                                                                                    <FilterIcon className="w-3 h-3 text-current" />
+                                                                                </button>
+                                                                                {isFilterOpen && (
+                                                                                    <div className="absolute top-full right-0 mt-1 w-48 bg-white/95 dark:bg-gray-700/95 backdrop-blur-md shadow-xl rounded-lg ring-1 ring-black ring-opacity-5 z-50 p-2">
+                                                                                                        <label className="flex items-center space-x-2 cursor-pointer p-1 hover:bg-gray-50 dark:hover:bg-gray-600 rounded">
+                                                                                                            <input 
+                                                                                                                type="checkbox" 
+                                                                                                                checked={showEmptyQuotesOnly} 
+                                                                                                                onChange={() => setShowEmptyQuotesOnly(!showEmptyQuotesOnly)}
+                                                                                                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                                                                            />
+                                                                                                            <span className="text-gray-700 dark:text-gray-200 font-normal normal-case">Show Empty Quotes Only</span>
+                                                                                                        </label>
+                                                                                    </div>
+                                                                                )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                <th className={`px-6 py-3 text-xs font-bold uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 ${headerColors["Comment"]}`}>Comment</th>
+                                                <th className={`px-6 py-3 text-xs font-bold uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 ${headerColors["DONE!"]}`}>DONE!</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                                            {filteredData.map(row => {
+                                                const isDone = doneRows.has(row._id);
+                                                const isSqrDup = duplicates.sqr.has(row["SQR #"]);
+                                                const isQuoteDup = duplicates.quote.has(row["Line Supplier Quote #"]);
+
+                                                return (
+                                                    <tr key={row._id} className={`transition-colors duration-200 ${isDone ? 'bg-green-100/80 dark:bg-green-900/30' : 'hover:bg-gray-50/50 dark:hover:bg-gray-700/30'}`}>
+                                                        {COLUMN_MAPPING.map(col => {
+                                                            let cellContent = row[col.name];
+                                                            let cellClass = "text-gray-700 dark:text-gray-300";
+                                                            let customStyle = "";
+
+                                                            // Duplicate Highlight Logic (Pink)
+                                                            if (col.name === "SQR #" && isSqrDup) {
+                                                                cellClass = "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100 font-bold px-2 py-0.5 rounded";
+                                                                customStyle = "bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900 dark:text-pink-100 dark:border-pink-800";
+                                                            }
+                                                            if (col.name === "Line Supplier Quote #" && isQuoteDup) {
+                                                                cellClass = "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100 font-bold px-2 py-0.5 rounded";
+                                                                customStyle = "bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900 dark:text-pink-100 dark:border-pink-800";
+                                                            }
+
+                                                            // Render Copyable for SQR and Quote
+                                                            if (col.copyable) {
+                                                                return (
+                                                                    <td key={col.name} className="px-6 py-3 whitespace-nowrap">
+                                                                        <CopyableSqr 
+                                                                            sqr={cellContent} 
+                                                                            isLastCopied={lastCopiedId === `${row._id}_${col.name}`} 
+                                                                            onCopy={() => setLastCopiedId(`${row._id}_${col.name}`)}
+                                                                            customClass={customStyle} 
+                                                                        />
+                                                                    </td>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <td key={col.name} className="px-6 py-3 whitespace-nowrap">
+                                                                    <span className={cellClass}>{cellContent}</span>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        
+                                                        {/* Comment Input */}
+                                                        <td className="px-6 py-3">
+                                                            <input 
+                                                                type="text" 
+                                                                value={comments[row._id] || ""}
+                                                                onChange={(e) => updateComment(row._id, e.target.value)}
+                                                                className="border-b border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:outline-none bg-transparent w-full text-gray-700 dark:text-gray-300"
+                                                                placeholder="Add comment..."
+                                                            />
+                                                        </td>
+
+                                                        {/* DONE Button */}
+                                                        <td className="px-6 py-3">
+                                                            <button 
+                                                                onClick={() => toggleDone(row._id)}
+                                                                className={`w-full px-3 py-1 rounded font-bold text-xs transition-colors shadow-sm border ${
+                                                                    isDone 
+                                                                    ? 'bg-green-600 text-white border-green-700 hover:bg-green-700 dark:bg-green-700 dark:border-green-600 dark:hover:bg-green-600' 
+                                                                    : 'bg-white/80 text-gray-500 border-gray-300 hover:bg-green-50 hover:text-green-600 dark:bg-gray-700/80 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 dark:hover:text-green-400'
+                                                                }`}
+                                                            >
+                                                                {isDone ? "COMPLETED" : "MARK DONE"}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- Feature 2: SQR Parser Tool (Replaces Placeholder) ---
+        const SqrParserTool = () => {
+            const [inputText, setInputText] = useState("");
+            const [parsedData, setParsedData] = useState([]);
+            const [sqrCounts, setSqrCounts] = useState({});
+            const [emoji, setEmoji] = useState("🙂");
+            // Removed local isDarkMode state
+            const [lastCopiedId, setLastCopiedId] = useState(null);
+            const [copySuccess, setCopySuccess] = useState(false);
+
+            // --- Persistence Logic ---
+            useEffect(() => {
+                // Load
+                const savedInput = localStorage.getItem('notif_input');
+                const savedData = localStorage.getItem('notif_data');
+                const savedCounts = localStorage.getItem('notif_counts');
+                if (savedInput) setInputText(savedInput);
+                if (savedData) {
+                    setParsedData(JSON.parse(savedData));
+                    setEmoji("😄"); // if data exists, show happy
+                }
+                if (savedCounts) setSqrCounts(JSON.parse(savedCounts));
+            }, []);
+
+            useEffect(() => {
+                // Save
+                localStorage.setItem('notif_input', inputText);
+                if (parsedData.length > 0) {
+                    localStorage.setItem('notif_data', JSON.stringify(parsedData));
+                    localStorage.setItem('notif_counts', JSON.stringify(sqrCounts));
+                }
+            }, [inputText, parsedData, sqrCounts]);
+
+            const clearStorage = () => {
+                localStorage.removeItem('notif_input');
+                localStorage.removeItem('notif_data');
+                localStorage.removeItem('notif_counts');
+            };
+            // --------------------------
+
+            // Palette for duplicates
+            const duplicateColors = [
+                "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-700",
+                "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 dark:bg-fuchsia-900/50 dark:text-fuchsia-200 dark:border-fuchsia-700",
+                "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/50 dark:text-orange-200 dark:border-orange-700",
+                "bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/50 dark:text-cyan-200 dark:border-cyan-700",
+                "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/50 dark:text-rose-200 dark:border-rose-700",
+                "bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900/50 dark:text-violet-200 dark:border-violet-700",
+                "bg-lime-100 text-lime-800 border-lime-200 dark:bg-lime-900/50 dark:text-lime-200 dark:border-lime-700",
+                "bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900/50 dark:text-pink-200 dark:border-pink-700",
+                "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:border-sky-700",
+            ];
+
+            const parseText = () => {
+                const regex = /Order\s+(\d+)\s+Line:\s+([\d\.]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
+                let match;
+                const tempResults = [];
+                const counts = {};
+                let lastMatchIndex = 0;
+
+                while ((match = regex.exec(inputText)) !== null) {
+                    const order = match[1].trim();
+                    const line = match[2].trim();
+                    const sqr = match[3].trim(); 
+                    const item = match[4].trim();
+                    
+                    const prefixText = inputText.substring(lastMatchIndex, match.index);
+                    const isResale = prefixText.includes("RESALE PRICE CHANGE");
+
+                    const id = Math.random().toString(36).substr(2, 9);
+                    tempResults.push({ 
+                        sqr, item, order, line, isResale, id, status: null
+                    });
+                    
+                    if (!isResale && sqr) {
+                        counts[sqr] = (counts[sqr] || 0) + 1;
+                    }
+                    lastMatchIndex = regex.lastIndex;
+                }
+
+                if (tempResults.length === 0) {
+                    alert("No data found. Please check input.");
+                    return;
+                }
+
+                setParsedData(tempResults);
+                setSqrCounts(counts);
+                setEmoji("😄");
+            };
+
+            const updateRowStatus = (id, newStatus) => {
+                setParsedData(prev => prev.map(row => 
+                    row.id === id ? { ...row, status: newStatus } : row
+                ));
+            };
+
+            const clearAll = () => {
+                setInputText("");
+                setParsedData([]);
+                setEmoji("🙂");
+                setLastCopiedId(null);
+                clearStorage();
+            };
+
+            const copyForExcel = () => {
+                if (parsedData.length === 0) {
+                    alert("Generate data first!");
+                    return;
+                }
+                
+                let tsvContent = "SQR / Order\tPart Number\tLine\tStatus\n";
+                
+                parsedData.forEach(row => {
+                    const col1 = row.isResale ? row.order : row.sqr;
+                    const statusText = row.status || "";
+                    tsvContent += `${col1}\t${row.item}\t${row.line}\t${statusText}\n`;
+                });
+
+                // Execute Copy
+                try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = tsvContent;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    textArea.style.top = "0";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    if (successful) {
+                        setCopySuccess(true);
+                        setTimeout(() => setCopySuccess(false), 2000);
+                    }
+                } catch (err) {
+                    console.error("Failed to copy", err);
+                }
+            };
+
+            // Calculate colors map
+            let colorIndex = 0;
+            const sqrColorMap = {};
+            Object.keys(sqrCounts).forEach(sqr => {
+                if(sqrCounts[sqr] > 1) {
+                    sqrColorMap[sqr] = duplicateColors[colorIndex % duplicateColors.length];
+                    colorIndex++;
+                }
+            });
+
+            // Handle Clipboard copy (Generic)
+            const copyToClipboard = (text, id) => {
+                try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textArea);
+                    setLastCopiedId(id);
+                } catch (err) {
+                    console.error('Copy failed', err);
+                }
+            };
+
+            return (
+                <div className="w-full transition-colors duration-300 min-h-[600px]">
+                    <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/40 dark:border-gray-700/40 overflow-hidden flex flex-col lg:flex-row min-h-[600px] transition-colors duration-300">
+                        
+                        {/* LEFT PANEL */}
+                        <div className="lg:w-1/3 p-6 border-r border-white/20 dark:border-gray-700/40 flex flex-col transition-colors duration-300">
+                            
+                            {/* Header inside Panel */}
+                            <div className="flex justify-between items-center mb-4">
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Notification Pro</h1>
+                                <div className="flex items-center gap-3">
+                                    <div className={`emoji-orb emoji-orb-light h-10 w-10 rounded-full flex items-center justify-center text-2xl transition-transform hover:scale-105 ${parsedData.length > 0 ? 'pop-in' : ''}`}>
+                                                {emoji}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Raw Data Input</label>
+                            <textarea 
+                                value={inputText}
+                                onChange={(e) => setInputText(e.target.value)}
+                                className="w-full flex-grow p-4 border border-gray-300/50 dark:border-gray-600/50 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-mono text-xs shadow-sm bg-white/50 dark:bg-gray-800/50 dark:text-gray-200 resize-none transition-colors backdrop-blur-sm" 
+                                placeholder="Paste your SQR emails here..."
+                            ></textarea>
+                            
+                            <div className="mt-6 flex flex-col gap-3">
+                                <button onClick={parseText} className="w-full py-3 bg-indigo-600/90 text-white font-semibold rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200/50 dark:shadow-none flex items-center justify-center gap-2 group backdrop-blur-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 group-hover:scale-110 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                                    Generate Table
+                                </button>
+                                
+                                <div className="flex gap-3">
+                                    <button onClick={copyForExcel} className="flex-1 py-3 bg-emerald-600/90 text-white font-semibold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200/50 dark:shadow-none flex items-center justify-center gap-2 backdrop-blur-sm">
+                                                {copySuccess ? (
+                                                    <>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                        Copied!
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                                        Copy Excel
+                                                    </>
+                                                )}
+                                    </button>
+                                    <button onClick={clearAll} className="flex-1 py-3 bg-white/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-semibold rounded-xl border border-gray-200/50 dark:border-gray-600/50 hover:bg-white/80 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2 backdrop-blur-sm">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT PANEL: Results Table */}
+                        <div className="lg:w-2/3 flex flex-col relative transition-colors duration-300">
+                            {parsedData.length === 0 ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                    <p className="text-sm font-medium">Waiting for data...</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col h-full">
+                                    <div className="px-6 py-4 border-b border-white/20 dark:border-gray-700/30 bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm flex justify-between items-center sticky top-0 z-10 transition-colors">
+                                            <h2 className="font-bold text-gray-800 dark:text-white">Parsed Items <span className="ml-2 bg-indigo-100/80 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full text-xs">{parsedData.length}</span></h2>
+                                            
+                                            <div className="flex gap-4 text-xs dark:text-gray-300">
+                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></span> Resale</div>
+                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm"></span> Duplicate (Color Coded)</div>
+                                            </div>
+                                    </div>
+
+                                    <div className="overflow-auto flex-grow custom-scrollbar p-0">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead className="bg-gray-50/60 dark:bg-gray-900/60 sticky top-0 z-10 shadow-sm transition-colors backdrop-blur-md border-b border-white/20 dark:border-gray-700/30">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10 text-center">#</th>
+                                                        <th className="px-6 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">SQR / Order</th>
+                                                        <th className="px-6 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Part Number</th>
+                                                        <th className="px-6 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">Line</th>
+                                                        <th className="px-6 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Status Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100/50 dark:divide-gray-700/50">
+                                                    {parsedData.map((row, index) => {
+                                                        let col1Text = row.sqr;
+                                                        let col1Value = row.sqr;
+                                                        let borderClass = "border-l-4 border-transparent";
+                                                        let highlightClass = "";
+                                                        
+                                                        // Styling logic
+                                                        if (row.isResale) {
+                                                            col1Value = row.order;
+                                                            col1Text = (
+                                                                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                                        {row.order}
+                                                                </span>
+                                                            );
+                                                            borderClass = "border-l-4 border-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/20";
+                                                        } else if (row.sqr && sqrCounts[row.sqr] > 1) {
+                                                            const colorClass = sqrColorMap[row.sqr];
+                                                            highlightClass = `${colorClass} px-2 py-0.5 rounded border box-decoration-clone`;
+                                                            borderClass = "border-l-4 border-amber-400 bg-amber-50/20 dark:bg-amber-900/20";
+                                                        }
+
+                                                        return (
+                                                            <tr key={row.id} className={`hover:bg-gray-50/40 dark:hover:bg-gray-700/30 transition-colors row-animate ${borderClass}`} style={{animationDelay: `${index * 0.03}s`}}>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400 font-mono text-center select-none">{index + 1}</td>
+                                                                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200 font-mono">
+                                                                        <div 
+                                                                            className={`click-copy ${lastCopiedId === `${row.id}_c1` ? 'last-copied' : ''}`}
+                                                                            onClick={() => copyToClipboard(col1Value, `${row.id}_c1`)}
+                                                                        >
+                                                                            {highlightClass ? <span className={`font-bold ${highlightClass}`}>{row.sqr}</span> : col1Text}
+                                                                            <span className="copy-tooltip">Copied!</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200 font-bold">
+                                                                        <div 
+                                                                            className={`click-copy ${lastCopiedId === `${row.id}_c2` ? 'last-copied' : ''}`}
+                                                                            onClick={() => copyToClipboard(row.item, `${row.id}_c2`)}
+                                                                        >
+                                                                            {highlightClass ? <span className={`font-bold ${highlightClass}`}>{row.item}</span> : row.item}
+                                                                            <span className="copy-tooltip">Copied!</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 font-mono">{row.line}</td>
+                                                                    <td className="px-6 py-2 whitespace-nowrap">
+                                                                        <div className="flex justify-center gap-2">
+                                                                                <label>
+                                                                                    <input 
+                                                                                        type="radio" 
+                                                                                        name={`s_${row.id}`} 
+                                                                                        className="hidden" 
+                                                                                        checked={row.status === 'Approved'}
+                                                                                        onChange={() => updateRowStatus(row.id, 'Approved')}
+                                                                                    />
+                                                                                    <span className="status-badge badge-approve px-3 py-1.5 rounded-md text-xs font-semibold shadow-sm backdrop-blur-sm bg-white/50 dark:bg-gray-700/50">Approve</span>
+                                                                                </label>
+                                                                                <label>
+                                                                                    <input 
+                                                                                        type="radio" 
+                                                                                        name={`s_${row.id}`} 
+                                                                                        className="hidden"
+                                                                                        checked={row.status === 'Rejected'}
+                                                                                        onChange={() => updateRowStatus(row.id, 'Rejected')}
+                                                                                    />
+                                                                                    <span className="status-badge badge-reject px-3 py-1.5 rounded-md text-xs font-semibold shadow-sm backdrop-blur-sm bg-white/50 dark:bg-gray-700/50">Reject</span>
+                                                                                </label>
+                                                                                {!row.isResale && (
+                                                                                    <label>
+                                                                                        <input 
+                                                                                            type="radio" 
+                                                                                            name={`s_${row.id}`} 
+                                                                                            className="hidden"
+                                                                                            checked={row.status === 'StepPriced'}
+                                                                                            onChange={() => updateRowStatus(row.id, 'StepPriced')}
+                                                                                        />
+                                                                                        <span className="status-badge badge-step px-3 py-1.5 rounded-md text-xs font-semibold shadow-sm backdrop-blur-sm bg-white/50 dark:bg-gray-700/50">Step</span>
+                                                                                    </label>
+                                                                                )}
+                                                                        </div>
+                                                                    </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Feature 3: New Excel Tool (Updated for "Review Open 21 Days") ---
+        const ExcelTool3 = () => {
+            // ... (Previous ExcelTool3 code remains exactly as is, just ensuring it saves to localStorage which it does)
+            const [file, setFile] = useState(null);
+            const [data, setData] = useState(null);
+// ... (Keep existing ExcelTool3 logic lines 896 to 1690 unchanged) ...
+// (I will output the new component below ExcelTool3 and then update App)
+            const [filteredData, setFilteredData] = useState([]);
+            const [error, setError] = useState(null);
+            const [isDragging, setIsDragging] = useState(false);
+            const [tableCopied, setTableCopied] = useState(false);
+            
+            // New state for multi-select
+            const [availableStats, setAvailableStats] = useState([]);
+            const [selectedStats, setSelectedStats] = useState(new Set(["OPEN_ISSUES"]));
+            const [isFilterOpen, setIsFilterOpen] = useState(false);
+            const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+            
+            // Updated processedRows to be an Object/Map { id: "Status Label" } instead of Set
+            const [processedRows, setProcessedRows] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('r21_processed');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) {
+                            return parsed.reduce((acc, id) => ({ ...acc, [id]: "DONE" }), {});
+                        }
+                        return parsed;
+                    }
+                } catch (e) {
+                    console.error("Failed to load processed rows", e);
+                }
+                return {};
+            }); 
+            
+            const [hideDone, setHideDone] = useState(false);
+            
+            // ISR Form State
+            const [isrFormData, setIsrFormData] = useState({
+                isrName: "", orderNo: "", line: "", sqrNo: "", sqrLine: "", gm: "", pmComment: ""
+            });
+            const [isrList, setIsrList] = useState([]);
+            const [activeIsrRowId, setActiveIsrRowId] = useState(null);
+            const [editingIndex, setEditingIndex] = useState(null);
+
+            const [lastCopiedId, setLastCopiedId] = useState(null);
+            const fileInputRef = useRef(null);
+            const filterDropdownRef = useRef(null);
+
+            // --- Persistence Logic ---
+            useEffect(() => {
+                const savedData = localStorage.getItem('r21_data');
+                const savedStats = localStorage.getItem('r21_stats');
+                const savedProcessed = localStorage.getItem('r21_processed');
+                const savedIsrList = localStorage.getItem('r21_isr_list');
+                
+                if (savedData) {
+                    const parsed = JSON.parse(savedData);
+                    setData(parsed);
+                    const stats = new Set();
+                    parsed.forEach(row => {
+                        if (row["SQR_Stat"]) stats.add(row["SQR_Stat"].trim().toUpperCase());
+                    });
+                    setAvailableStats(Array.from(stats).sort());
+                }
+                if (savedStats) setSelectedStats(new Set(JSON.parse(savedStats)));
+                if (savedProcessed) setProcessedRows(new Set(JSON.parse(savedProcessed)));
+                if (savedIsrList) setIsrList(JSON.parse(savedIsrList));
+            }, []);
+
+            useEffect(() => {
+                if (data) localStorage.setItem('r21_data', JSON.stringify(data));
+                localStorage.setItem('r21_stats', JSON.stringify(Array.from(selectedStats)));
+                localStorage.setItem('r21_processed', JSON.stringify(processedRows));
+                localStorage.setItem('r21_isr_list', JSON.stringify(isrList));
+            }, [data, selectedStats, processedRows, isrList]);
+
+            const clearStorage = () => {
+                localStorage.removeItem('r21_data');
+                localStorage.removeItem('r21_stats');
+                localStorage.removeItem('r21_processed');
+                localStorage.removeItem('r21_isr_list');
+            };
+
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+                        setIsFilterOpen(false);
+                    }
+                };
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, []);
+
+            const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+            const handleDragLeave = () => { setIsDragging(false); };
+            const handleDrop = (e) => {
+                e.preventDefault(); setIsDragging(false);
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile) processFile(droppedFile);
+            };
+            const handleFileSelect = (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile) processFile(selectedFile);
+            };
+
+            const processFile = (inputFile) => {
+                setFile(inputFile);
+                setError(null);
+                setData(null);
+                setFilteredData([]);
+                setAvailableStats([]);
+                setProcessedRows({});
+                setIsrList([]);
+                clearStorage();
+
+                const fileName = inputFile.name.toLowerCase();
+
+                if (fileName.endsWith('.csv')) {
+                    Papa.parse(inputFile, {
+                        header: true, skipEmptyLines: true,
+                        complete: (results) => {
+                            let rawData = results.data;
+                            if (rawData.length > 1 && (!rawData[0]['SQR_No'] && !rawData[0]['SQR No'])) {
+                                const keys = Object.keys(rawData[0]);
+                                const hasEmptyKeys = keys.some(k => k.trim() === "");
+                                if (hasEmptyKeys) {
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => {
+                                        const text = e.target.result;
+                                        const lines = text.split('\n');
+                                        if (lines.length > 1) {
+                                            const newText = lines.slice(1).join('\n');
+                                            const reparsed = Papa.parse(newText, { header: true, skipEmptyLines: true });
+                                            processData(reparsed.data);
+                                        }
+                                    };
+                                    reader.readAsText(inputFile);
+                                    return;
+                                }
+                            }
+                            processData(rawData);
+                        },
+                        error: (err) => { setError("Error parsing CSV: " + err.message); }
+                    });
+                } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            let jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                            if (jsonData.length > 0) {
+                                const keys = Object.keys(jsonData[0]);
+                                if (keys.includes("__EMPTY")) {
+                                    jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 1, defval: "" });
+                                }
+                            }
+                            processData(jsonData);
+                        } catch (err) { console.error(err); setError("Error parsing Excel file."); }
+                    };
+                    reader.readAsArrayBuffer(inputFile);
+                }
+            };
+
+            const processData = (rawData) => {
+                if (!rawData || rawData.length === 0) { setError("No data found."); return; }
+                const stats = new Set();
+                rawData.forEach(row => {
+                    if (row["SQR_Stat"]) stats.add(row["SQR_Stat"].trim().toUpperCase());
+                });
+                setAvailableStats(Array.from(stats).sort());
+                const enrichedData = rawData.map((row, index) => ({
+                    ...row,
+                    _id: row.id || `row-${index}-${Math.random().toString(36).substr(2, 9)}`
+                }));
+                setData(enrichedData);
+            };
+
+            useEffect(() => {
+                if (data) {
+                    let filtered = data.filter(row => {
+                        const stat = (row["SQR_Stat"] || "").trim().toUpperCase();
+                        let gmVal = parseFloat(row["GM%"] || row["GM"] || "0");
+                        if (isNaN(gmVal)) gmVal = 0;
+                        const isLowMargin = gmVal < 2.5;
+                        let isStatusMatch = false;
+                        if (selectedStats.has("ALL")) {
+                            isStatusMatch = true;
+                        } else {
+                            if (selectedStats.has("OPEN_ISSUES")) {
+                                if (["AUTH", "PNDA", "EXPD", "STS", "PREW", "DRFT", "NAFS"].includes(stat)) isStatusMatch = true;
+                            }
+                            if (!isStatusMatch && selectedStats.has(stat)) { isStatusMatch = true; }
+                        }
+                        if (hideDone && processedRows[row._id]) return false;
+                        return isLowMargin && isStatusMatch;
+                    });
+                    filtered.sort((a, b) => {
+                        const parseDate = (val) => {
+                            if (!val) return new Date("1900-01-01");
+                            if (!isNaN(val) && val > 20000) { return new Date(Math.round((val - 25569)*86400*1000)); }
+                            return new Date(val);
+                        };
+                        const dateA = parseDate(a["Full_SSD"]);
+                        const dateB = parseDate(b["Full_SSD"]);
+                        if (sortDirection === 'asc') return dateA - dateB;
+                        return dateB - dateA;
+                    });
+                    setFilteredData(filtered);
+                }
+            }, [selectedStats, data, sortDirection, hideDone, processedRows]);
+
+            const toggleStatus = (status) => {
+                const newSet = new Set(selectedStats);
+                if (status === "ALL") {
+                    if (newSet.has("ALL")) return;
+                    newSet.clear(); newSet.add("ALL");
+                } else {
+                    if (newSet.has("ALL")) newSet.delete("ALL");
+                    if (newSet.has(status)) {
+                        newSet.delete(status);
+                        if (newSet.size === 0) newSet.add("ALL");
+                    } else { newSet.add(status); }
+                }
+                setSelectedStats(newSet);
+            };
+
+            const toggleSort = () => { setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc'); };
+
+            const toggleProcessed = (id, label = "DONE") => {
+                setProcessedRows(prev => {
+                    const newMap = { ...prev };
+                    if (newMap[id]) { delete newMap[id]; } else { newMap[id] = label; }
+                    return newMap;
+                });
+            };
+
+            const populateIsrForm = (row) => {
+                let gmRaw = parseFloat(row["GM%"] || "0");
+                let gmPercent = gmRaw.toFixed(2) + "%";
+                setIsrFormData({
+                    rowId: row._id, isrName: row["ISR_Name"] || "", orderNo: row["Order_No"] || "",
+                    line: row["LI"] || "", sqrNo: row["SQR_No"] || "", sqrLine: row["SQR_LI"] || "",
+                    gm: gmPercent, pmComment: ""
+                });
+                if (activeIsrRowId === row._id) { setActiveIsrRowId(null); } else { setActiveIsrRowId(row._id); setEditingIndex(null); }
+            };
+
+            const saveIsrEntry = () => {
+                if (!isrFormData.orderNo) return;
+                if (editingIndex !== null) {
+                    setIsrList(prev => { const newList = [...prev]; newList[editingIndex] = { ...isrFormData }; return newList; });
+                    setEditingIndex(null);
+                } else {
+                    setIsrList(prev => [...prev, { ...isrFormData }]);
+                    if (isrFormData.rowId) { toggleProcessed(isrFormData.rowId, "ISR SENT"); }
+                }
+                setActiveIsrRowId(null);
+                setIsrFormData({ isrName: "", orderNo: "", line: "", sqrNo: "", sqrLine: "", gm: "", pmComment: "" });
+            };
+
+            const cancelIsrEntry = () => {
+                setActiveIsrRowId(null); setEditingIndex(null);
+                setIsrFormData({ isrName: "", orderNo: "", line: "", sqrNo: "", sqrLine: "", gm: "", pmComment: "" });
+            };
+
+            const deleteIsrItem = (index) => {
+                const item = isrList[index];
+                if (item.rowId) {
+                    setProcessedRows(prev => { const newMap = { ...prev }; delete newMap[item.rowId]; return newMap; });
+                }
+                setIsrList(prev => prev.filter((_, i) => i !== index));
+                if (editingIndex === index) { setEditingIndex(null); cancelIsrEntry(); }
+            };
+
+            const editIsrItem = (index) => {
+                const item = isrList[index];
+                setIsrFormData({ ...item }); setEditingIndex(index); setActiveIsrRowId(null);
+                setTimeout(() => { const formElement = document.getElementById('isr-edit-form'); if (formElement) formElement.scrollIntoView({ behavior: 'smooth' }); }, 100);
+            };
+
+            const generateEmails = () => {
+                if (isrList.length === 0) return;
+                const uniqueNames = [...new Set(isrList.map(item => item.isrName))];
+                const emails = uniqueNames.map(name => {
+                    if (!name) return "";
+                    let first = ""; let last = "";
+                    const cleanName = name.trim().replace(/\s+/g, ' ');
+                    if (cleanName.includes(',')) {
+                        const parts = cleanName.split(','); last = parts[0].trim(); first = parts[1] ? parts[1].trim() : "";
+                    } else {
+                        const parts = cleanName.split(' '); if (parts.length >= 2) { last = parts[0]; first = parts.slice(1).join(' '); } else { last = cleanName; }
+                    }
+                    const sanitize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (!first && !last) return ""; if (!first) return `${sanitize(last)}@arrow.com`;
+                    return `${sanitize(first)}.${sanitize(last)}@arrow.com`;
+                }).filter(e => e !== "").join("; ");
+                navigator.clipboard.writeText(emails).then(() => { alert(`Emails generated & copied:\n${emails}`); }).catch(err => { prompt("Copy emails manually:", emails); });
+            };
+
+            const copyIsrList = () => {
+                if (isrList.length === 0) return;
+                const colors = { headerIsr: "background-color: #4472C4; color: white;", headerOrder: "background-color: #70AD47; color: white;", headerSqr: "background-color: #5B9BD5; color: white;", headerGm: "background-color: #C00000; color: white;", headerPm: "background-color: #ED7D31; color: white;" };
+                let tableHTML = `<table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif;"><thead><tr><th style="${colors.headerIsr} padding: 5px;">ISR Name</th><th style="${colors.headerOrder} padding: 5px;">Order No</th><th style="${colors.headerOrder} padding: 5px;">Line</th><th style="${colors.headerSqr} padding: 5px;">SQR No</th><th style="${colors.headerSqr} padding: 5px;">SQR Line</th><th style="${colors.headerGm} padding: 5px;">GM%</th><th style="${colors.headerPm} padding: 5px;">PM Comment</th></tr></thead><tbody>`;
+                isrList.forEach(item => {
+                    const safe = (val) => String(val || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    let gmNum = parseFloat(item.gm); let gmVal = !isNaN(gmNum) ? (gmNum / 100) : 0;
+                    tableHTML += `<tr><td>${safe(item.isrName)}</td><td>${safe(item.orderNo)}</td><td>${safe(item.line)}</td><td>${safe(item.sqrNo)}</td><td>${safe(item.sqrLine)}</td><td>${gmVal.toLocaleString(undefined, {style: 'percent', minimumFractionDigits: 2})}</td><td>${safe(item.pmComment)}</td></tr>`;
+                });
+                tableHTML += `</tbody></table>`;
+                const headers = ["ISR Name", "Order No", "Line", "SQR No", "SQR Line", "GM%", "PM Comment"];
+                const rows = isrList.map(item => {
+                    let gmNum = parseFloat(item.gm); let gmVal = !isNaN(gmNum) ? (gmNum / 100) : 0;
+                   return [item.isrName, item.orderNo, item.line, item.sqrNo, item.sqrLine, gmVal.toLocaleString(undefined, {style: 'percent', minimumFractionDigits: 2}), item.pmComment].join("\t");
+                });
+                const plainText = [headers.join("\t"), ...rows].join("\n");
+                try {
+                    const blobHtml = new Blob([tableHTML], { type: 'text/html' }); const blobText = new Blob([plainText], { type: 'text/plain' }); const data = [new ClipboardItem({ "text/html": blobHtml, "text/plain": blobText })];
+                    navigator.clipboard.write(data).then(() => { alert("ISR List copied! (Ready for Excel)"); }).catch(err => { fallbackCopy(plainText); });
+                } catch (err) { fallbackCopy(plainText); }
+            };
+
+            const fallbackCopy = (text) => {
+                 const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); document.execCommand('copy'); document.body.removeChild(textArea); alert("Copied as text (Excel formatting might be limited, but headers are there).");
+            };
+
+            const handleCopyForISR_Legacy = () => {
+                 if (filteredData.length === 0) return;
+                const headers = ["ISR name", "ORDER_no", "LI", "SQR_No", "SQR_LI", "GM%_New", "PM comment", "Additional Status"];
+                const rows = filteredData.map(row => {
+                    let gmRaw = parseFloat(row["GM%"] || "0"); let gmDecimal = (gmRaw / 100).toFixed(4); 
+                    const stat = (row["SQR_Stat"] || "").trim().toUpperCase();
+                    let additionalStatus = "";
+                    if (stat === "EXPD") additionalStatus = "RENEWED"; else if (stat === "PNDA") additionalStatus = "AUTHORIZED"; else if (stat === "PREW") additionalStatus = "RENEWED"; else if (stat === "NAFS") additionalStatus = "RENEWED";
+                    return [row["ISR_Name"] || "", row["Order_No"] || "", row["LI"] || "", row["SQR_No"] || "", row["SQR_LI"] || "", gmDecimal, "", processedRows[row._id] ? "DONE" : additionalStatus].join("\t");
+                });
+                const tsvContent = [headers.join("\t"), ...rows].join("\n");
+                 try {
+                    const textArea = document.createElement("textarea"); textArea.value = tsvContent; textArea.style.position = "fixed"; textArea.style.left = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); const successful = document.execCommand('copy'); document.body.removeChild(textArea);
+                    if (successful) { setTableCopied(true); setTimeout(() => setTableCopied(false), 2000); }
+                } catch (err) { console.error("Failed to copy", err); }
+            };
+
+            const getStatColor = (stat) => {
+                switch (stat) {
+                    case "AUTH": return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800";
+                    case "PNDA": return "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/50 dark:text-orange-200 dark:border-orange-800";
+                    case "EXPD": return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-800";
+                    case "STS": return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800";
+                    case "RJCT": return "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800"; 
+                    case "PREW": return "bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/50 dark:text-cyan-200 dark:border-cyan-800";
+                    case "DRFT": return "bg-gray-200 text-gray-800 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600";
+                    case "NAFS": return "bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/50 dark:text-teal-200 dark:border-teal-800";
+                    default: return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700";
+                }
+            };
+
+            const formatDate = (val) => {
+                if (!val) return ""; let dateObj;
+                if (!isNaN(val) && Number(val) > 1000) { dateObj = new Date(Math.round((val - 25569) * 86400 * 1000)); } else { dateObj = new Date(val); }
+                if (isNaN(dateObj.getTime())) return val;
+                return dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            };
+
+            const renderIsrForm = (isInline = false) => (
+                <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl ${isInline ? 'shadow-inner border-2 border-indigo-200 dark:border-indigo-800' : 'shadow-lg border border-indigo-100 dark:border-indigo-900'}`}>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Order No</label><input type="text" value={isrFormData.orderNo} onChange={e => setIsrFormData({...isrFormData, orderNo: e.target.value})} className="w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50/50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-100" placeholder="Order #" /></div>
+                            <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Line</label><input type="text" value={isrFormData.line} onChange={e => setIsrFormData({...isrFormData, line: e.target.value})} className="w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50/50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-100" placeholder="Line" /></div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">SQR No</label><input type="text" value={isrFormData.sqrNo} readOnly className="w-full border-gray-200 dark:border-gray-700 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sm:text-sm cursor-not-allowed" /></div>
+                            <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">SQR Line</label><input type="text" value={isrFormData.sqrLine} readOnly className="w-full border-gray-200 dark:border-gray-700 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sm:text-sm cursor-not-allowed" /></div>
+                            <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">GM%</label><input type="text" value={isrFormData.gm} readOnly className="w-full border-gray-200 dark:border-gray-700 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sm:text-sm cursor-not-allowed" /></div>
+                        </div>
+                        <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">ISR Name</label><input type="text" value={isrFormData.isrName} readOnly className="w-full border-gray-200 dark:border-gray-700 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sm:text-sm cursor-not-allowed font-medium" /></div>
+                    </div>
+                    <div className="flex flex-col justify-between space-y-4">
+                        <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">PM Comment</label><textarea value={isrFormData.pmComment} onChange={e => setIsrFormData({...isrFormData, pmComment: e.target.value})} className="w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-24 resize-none bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-100" placeholder="Enter comments for ISR..."></textarea></div>
+                        <div className="flex flex-col gap-2"><div className="flex gap-2"><button onClick={cancelIsrEntry} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg font-bold hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button><button onClick={saveIsrEntry} disabled={!isrFormData.orderNo} className={`flex-1 ${editingIndex !== null ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-4 py-2 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed`}>{editingIndex !== null ? "Update Item" : "Save to List"}</button></div></div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="w-full max-w-[98%] mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+                    <div className="text-center space-y-2">
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">21 Days Report Tool</h1>
+                        <p className="text-gray-500 dark:text-gray-400">Upload "SQR Review Open 21 Days" file. Auto-filters Low Margin.</p>
+                        {data && (<p className="text-xs text-green-600 dark:text-green-400 font-semibold animate-pulse">Auto-save enabled</p>)}
+                    </div>
+                    <div onClick={() => fileInputRef.current.click()} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 ${isDragging ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white/60 dark:bg-gray-800/60'} ${file ? 'bg-gray-50/50 dark:bg-gray-700/50' : ''} backdrop-blur-sm`}>
+                        <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".csv,.xlsx,.xls" className="hidden" />
+                        <div className="flex flex-col items-center justify-center space-y-3">
+                            {file ? (<div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center"><FileIcon /></div>) : (<UploadIcon />)}
+                            <div>{file ? (<p className="text-lg font-medium text-gray-900 dark:text-white">{file.name}</p>) : (<p className="text-lg font-medium text-gray-700 dark:text-gray-300">Click to upload or drag and drop</p>)}</div>
+                        </div>
+                    </div>
+                    {error && (<div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-md flex items-start space-x-3"><AlertIcon /><p className="text-red-700 dark:text-red-400">{error}</p></div>)}
+                    {data && (
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md p-6 rounded-xl shadow-sm border border-gray-100/50 dark:border-gray-700/50"><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Rows Loaded</p><p className="text-2xl font-bold text-gray-900 dark:text-white">{data.length}</p></div>
+                                <div className="bg-pink-50/90 dark:bg-pink-900/40 backdrop-blur-md p-6 rounded-xl shadow-sm border border-pink-100/50 dark:border-pink-900/50"><p className="text-sm font-medium text-pink-600 dark:text-pink-400">Actionable Items (Filtered)</p><p className="text-2xl font-bold text-pink-700 dark:text-pink-300">{filteredData.length}</p></div>
+                                <div className="flex flex-col justify-center space-y-2 relative" ref={filterDropdownRef}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Filter Status</label>
+                                        <button onClick={() => setHideDone(!hideDone)} className={`flex items-center space-x-1 text-xs px-2 py-0.5 rounded-full transition-colors border ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'}`} title={hideDone ? "Show Done Rows" : "Hide Done Rows"}>{hideDone ? <EyeOffIcon /> : <EyeIcon />}<span>{hideDone ? "Showing Active" : "Showing All"}</span></button>
+                                    </div>
+                                    <button onClick={() => setIsFilterOpen(!isFilterOpen)} className="w-full flex items-center justify-between bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm px-3 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 dark:text-gray-200"><span className="block truncate">{selectedStats.has("ALL") ? "All Statuses" : `Selected (${selectedStats.size})`}</span><span className="ml-2 flex items-center pr-2 pointer-events-none text-gray-500 dark:text-gray-400"><FilterIcon /></span></button>
+                                    {isFilterOpen && (
+                                        <div className="absolute top-20 z-20 mt-1 w-full bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm border border-gray-200 dark:border-gray-700">
+                                            <div className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700" onClick={() => toggleStatus("ALL")}><div className="flex items-center"><input type="checkbox" checked={selectedStats.has("ALL")} readOnly className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" /><span className="ml-3 block font-medium truncate">All Statuses</span></div></div>
+                                            <div className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700" onClick={() => toggleStatus("OPEN_ISSUES")}><div className="flex items-center"><input type="checkbox" checked={selectedStats.has("OPEN_ISSUES")} readOnly className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" /><span className="ml-3 block font-medium truncate text-blue-700 dark:text-blue-400">Open Issues (Standard)</span></div></div>
+                                            {availableStats.map((stat) => ( <div key={stat} className="flex items-center px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-200" onClick={() => toggleStatus(stat)}><input type="checkbox" checked={selectedStats.has(stat)} readOnly className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" /><span className="ml-3 block truncate">{stat}</span></div> ))}
+                                        </div>
+                                    )}
+                                    <button onClick={handleCopyForISR_Legacy} disabled={filteredData.length === 0} className={`w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 shadow-sm mt-2 ${tableCopied ? 'bg-green-600 text-white transform scale-105' : 'bg-blue-600/90 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm'}`}>{tableCopied ? (<><CheckIcon className="w-4 h-4 text-white" /><span>Copied!</span></>) : (<><TableIcon /><span>Copy Table for Excel</span></>)}</button>
+                                    <button onClick={() => { clearStorage(); setData(null); setFilteredData([]); setProcessedRows({}); setIsrList([]); setFile(null); }} className="w-full text-center text-xs text-gray-400 hover:text-red-500 mt-2 underline">Clear Saved Data & Reset</button>
+                                </div>
+                            </div>
+                            {filteredData.length > 0 ? (
+                                <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
+                                    <div className="px-6 py-4 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/40 dark:bg-gray-800/40 flex justify-between items-center"><div><h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filtered Results</h3><p className="text-sm text-gray-500 dark:text-gray-400">GM% &lt; 2.5%</p></div></div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm border-collapse">
+                                            <thead className="bg-gray-50/60 dark:bg-gray-700/60 backdrop-blur-sm text-gray-600 dark:text-gray-300 font-medium border-b border-gray-200/50 dark:border-gray-600/50"><tr><th className="px-6 py-3">ISR Name</th><th className="px-6 py-3">Order #</th><th className="px-6 py-3">Order Line</th><th className="px-6 py-3">SQR #</th><th className="px-6 py-3">SQR Line</th><th className="px-6 py-3">Part Number</th><th className="px-6 py-3">GM%</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Date (SSD)</th><th className="px-6 py-3">Action</th></tr></thead>
+                                            <tbody className="divide-y divide-gray-100/50 dark:divide-gray-700/50">
+                                                {filteredData.map((row, idx) => {
+                                                    const stat = (row["SQR_Stat"] || "").trim().toUpperCase();
+                                                    const processedStatus = processedRows[row._id];
+                                                    const isProcessed = !!processedStatus;
+                                                    let actions = null;
+                                                    const btnBaseClass = "transform transition-all duration-200 hover:scale-105 active:scale-95 px-3 py-1 rounded border font-bold text-xs shadow-sm flex items-center justify-center";
+                                                    const formulaBtn = (<button onClick={() => populateIsrForm(row)} className={`${btnBaseClass} bg-purple-100/80 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 border-purple-300 dark:border-purple-700`} title="Populate ISR Form"><FormulaIcon className="w-3 h-3" /></button>);
+
+                                                    if (isProcessed) {
+                                                        actions = (<div className="flex space-x-2"><button onClick={() => toggleProcessed(row._id)} className={`pop-in flex items-center space-x-1 px-3 py-1 rounded border bg-green-100/80 dark:bg-green-900/40 text-green-700 dark:text-green-200 border-green-300 dark:border-green-800 font-bold text-xs hover:bg-green-200 dark:hover:bg-green-800 transition-colors shadow-sm`}><CheckIcon className="w-3 h-3" /><span>{processedStatus}</span></button>{formulaBtn}</div>);
+                                                    } else {
+                                                        if (stat === "EXPD") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'blue'); toggleProcessed(row._id, "RENEWED"); }} className={`${btnBaseClass} bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 border-blue-300 dark:border-blue-700`}>RENEWED</button>{formulaBtn}</div>);
+                                                        } else if (stat === "PNDA") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'orange'); toggleProcessed(row._id, "AUTHORIZED"); }} className={`${btnBaseClass} bg-orange-100/80 dark:bg-orange-900/40 text-orange-700 dark:text-orange-200 hover:bg-orange-200 dark:hover:bg-orange-800 border-orange-300 dark:border-orange-700`}>AUTHORIZED</button>{formulaBtn}</div>);
+                                                        } else if (stat === "AUTH") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'green'); toggleProcessed(row._id, "FIXED"); }} className={`${btnBaseClass} bg-green-50/80 dark:bg-green-900/40 text-green-700 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-800 border-green-300 dark:border-green-700`}>FIXED</button>{formulaBtn}</div>);
+                                                        } else if (stat === "STS") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'gold'); toggleProcessed(row._id, "PRICE UPDATED"); }} className={`${btnBaseClass} bg-red-100/80 dark:bg-red-900/40 text-red-700 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-800 border-red-300 dark:border-red-700`}>PRICE</button>{formulaBtn}</div>);
+                                                        } else if (stat === "PREW") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'blue'); toggleProcessed(row._id, "RENEWED"); }} className={`${btnBaseClass} bg-cyan-100/80 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-200 hover:bg-cyan-200 dark:hover:bg-cyan-800 border-cyan-300 dark:border-cyan-700`}>RENEWED</button>{formulaBtn}</div>);
+                                                        } else if (stat === "DRFT") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'blue'); toggleProcessed(row._id, "Sent to Supplier"); }} className={`${btnBaseClass} bg-gray-100/80 dark:bg-gray-700/40 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-500`}>STS</button><button onClick={(e) => { triggerParticles(e, 'red'); toggleProcessed(row._id, "Deleted"); }} className={`${btnBaseClass} bg-red-50/80 dark:bg-red-900/30 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800/50 border-red-200 dark:border-red-800`}>DELETED</button>{formulaBtn}</div>);
+                                                        } else if (stat === "NAFS") {
+                                                            actions = (<div className="flex space-x-2"><button onClick={(e) => { triggerParticles(e, 'teal'); toggleProcessed(row._id, "RENEWED"); }} className={`${btnBaseClass} bg-teal-100/80 dark:bg-teal-900/40 text-teal-700 dark:text-teal-200 hover:bg-teal-200 dark:hover:bg-teal-800 border-teal-300 dark:border-teal-700`}>RENEWED</button>{formulaBtn}</div>);
+                                                        } else {
+                                                            actions = (<div className="flex space-x-2">{formulaBtn}</div>);
+                                                        }
+                                                    }
+                                                    return (
+                                                        <React.Fragment key={row._id}>
+                                                            <tr id={row._id} className={`transition-colors duration-200 ${isProcessed ? 'bg-green-50/60 dark:bg-green-900/20 border-l-4 border-l-green-500' : 'hover:bg-gray-50/40 dark:hover:bg-gray-700/30 border-l-4 border-l-transparent'} ${activeIsrRowId === row._id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-l-indigo-500' : ''}`}>
+                                                                <td className="px-6 py-3 text-gray-900 dark:text-gray-200 font-medium">{row["ISR_Name"]}</td>
+                                                                <td className="px-6 py-3 text-gray-500 dark:text-gray-300 font-mono"><CopyableSqr sqr={row["Order_No"]} isLastCopied={lastCopiedId === `${row._id}_order`} onCopy={() => setLastCopiedId(`${row._id}_order`)} /></td>
+                                                                <td className="px-6 py-3 text-gray-500 dark:text-gray-200 font-mono">{row["LI"]}</td>
+                                                                <td className="px-6 py-3 text-gray-500 dark:text-gray-300 font-mono"><CopyableSqr sqr={row["SQR_No"]} isLastCopied={lastCopiedId === `${row._id}_sqr`} onCopy={() => setLastCopiedId(`${row._id}_sqr`)} /></td>
+                                                                <td className="px-6 py-3 text-gray-500 dark:text-gray-200 font-mono">{row["SQR_LI"]}</td>
+                                                                <td className="px-6 py-3 text-gray-700 dark:text-gray-200"><CopyableSqr sqr={row["Part_no"]} isLastCopied={lastCopiedId === `${row._id}_part`} onCopy={() => setLastCopiedId(`${row._id}_part`)} /></td>
+                                                                <td className="px-6 py-3"><span className="bg-pink-100/80 dark:bg-pink-900/40 text-pink-800 dark:text-pink-200 px-2 py-1 rounded font-bold border border-pink-200 dark:border-pink-800">{parseFloat(row["GM%"] || 0).toFixed(2)}%</span></td>
+                                                                <td className="px-6 py-3"><span className={`px-2 py-1 rounded text-xs font-bold border ${getStatColor(row["SQR_Stat"])}`}>{row["SQR_Stat"]}</span></td>
+                                                                <td className="px-6 py-3 text-gray-500 dark:text-gray-300">{formatDate(row["Full_SSD"])}</td>
+                                                                <td className="px-6 py-3">{actions}</td>
+                                                            </tr>
+                                                            {activeIsrRowId === row._id && (<tr className="bg-indigo-50/50 dark:bg-gray-800 animate-in slide-in-from-top-4 duration-300"><td colSpan="10" className="p-4">{renderIsrForm(true)}</td></tr>)}
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ) : (<div className="p-12 text-center bg-gray-50/50 dark:bg-gray-700/30 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 backdrop-blur-sm"><p className="text-gray-500 dark:text-gray-400 text-lg">No items match the filter criteria (GM &lt; 2.5% + Selected Status).</p></div>)}
+                            {isrList.length > 0 && (
+                                <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-indigo-100 dark:border-indigo-900 overflow-hidden mt-8">
+                                    <div className="px-6 py-4 bg-indigo-50/80 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800 flex justify-between items-center"><h3 className="text-lg font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">Saved Items Preview</h3><span className="bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 text-xs font-bold px-2 py-1 rounded-full">Total: {isrList.length}</span></div>
+                                    {editingIndex !== null && (<div id="isr-edit-form" className="p-4 border-b border-indigo-100 dark:border-indigo-800"><p className="text-xs font-bold text-amber-500 dark:text-amber-400 uppercase mb-2">Editing Item #{editingIndex + 1}</p>{renderIsrForm(false)}</div>)}
+                                    <div className="p-4 bg-gray-50/50 dark:bg-gray-900/30">
+                                        <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                                            {isrList.map((item, idx) => (
+                                                <div key={idx} className={`relative group bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border ${editingIndex === idx ? 'border-amber-400 ring-2 ring-amber-100' : 'border-gray-200 dark:border-gray-600'} rounded p-2 min-w-[160px] shadow-sm text-xs transition-all hover:shadow-md`}>
+                                                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-gray-800/90 rounded p-0.5"><button onClick={() => editIsrItem(idx)} className="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded" title="Edit"><EditIcon className="w-3 h-3" /></button><button onClick={() => deleteIsrItem(idx)} className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded" title="Delete"><TrashIcon className="w-3 h-3" /></button></div>
+                                                    <div className="font-bold text-gray-900 dark:text-gray-200 pr-6">#{item.orderNo}</div><div className="text-gray-500 dark:text-gray-400 truncate">{item.isrName}</div><div className="text-gray-400 dark:text-gray-500 mt-1 italic truncate">{item.pmComment || "No comment"}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/20 border-t border-indigo-100 dark:border-indigo-800 flex gap-2"><button onClick={copyIsrList} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition flex items-center justify-center gap-2 shadow-sm"><TableIcon className="w-4 h-4" />Copy Table</button><button onClick={generateEmails} className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-sm" title="Generate firstname.lastname@arrow.com emails"><MailIcon className="w-4 h-4" />Emails</button></div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- Feature 4: Report Progress Tab ---
+        const ReportProgressTab = () => {
+            const [stats, setStats] = useState(null);
+            
+            useEffect(() => {
+                // Load data fresh from localStorage on mount
+                const r21DataStr = localStorage.getItem('r21_data');
+                const processedStr = localStorage.getItem('r21_processed');
+                
+                const r21Data = r21DataStr ? JSON.parse(r21DataStr) : [];
+                const processed = processedStr ? JSON.parse(processedStr) : {};
+                
+                if (r21Data.length === 0) {
+                    setStats(null);
+                    return;
+                }
+
+                // 1. Calculate Status Distribution (for Donut)
+                const distribution = {};
+                // Colors map for CSS conic-gradient
+                const colorMap = {
+                    'AUTH': '#4ade80',  // green-400
+                    'PNDA': '#fb923c',  // orange-400
+                    'EXPD': '#60a5fa',  // blue-400
+                    'STS': '#f87171',   // red-400
+                    'NAFS': '#2dd4bf',  // teal-400
+                    'PREW': '#22d3ee',  // cyan-400
+                    'DRFT': '#9ca3af',  // gray-400
+                    'RJCT': '#c084fc',  // purple-400
+                    'OTHER': '#e5e7eb'  // gray-200
+                };
+
+                // We only care about rows that are "actionable" (low margin) usually, 
+                // but user said "percentage of the lines that i have", implying ALL lines loaded.
+                // Let's stick to the full dataset loaded in the tool.
+                r21Data.forEach(row => {
+                    let stat = (row["SQR_Stat"] || "OTHER").trim().toUpperCase();
+                    if (!colorMap[stat]) stat = 'OTHER';
+                    distribution[stat] = (distribution[stat] || 0) + 1;
+                });
+
+                // Prepare Conic Gradient String
+                let currentAngle = 0;
+                const total = r21Data.length;
+                const gradientParts = [];
+                const legendData = [];
+
+                Object.entries(distribution).forEach(([stat, count]) => {
+                    const percentage = (count / total) * 100;
+                    const nextAngle = currentAngle + (percentage * 3.6); // 360 degrees / 100%
+                    const color = colorMap[stat];
+                    
+                    gradientParts.push(`${color} ${currentAngle}deg ${nextAngle}deg`);
+                    legendData.push({ stat, count, color, percentage: Math.round(percentage) });
+                    currentAngle = nextAngle;
+                });
+
+                const conicGradient = `conic-gradient(${gradientParts.join(', ')})`;
+
+                // 2. Calculate Progress (for Circle)
+                // Filter rows that match the low margin criteria used in the main tool to make progress meaningful?
+                // Or just total progress against all rows?
+                // User said "keep increasing when i m done with the lines".
+                // Usually "done" means clicked an action button.
+                
+                // Let's count how many IDs in r21Data exist in processedRows
+                const completedCount = r21Data.filter(row => processed[row._id]).length;
+                const progressPercentage = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+                // SVG Circle Props
+                const radius = 80;
+                const circumference = 2 * Math.PI * radius;
+                const dashOffset = circumference - (progressPercentage / 100) * circumference;
+
+                setStats({
+                    total,
+                    completedCount,
+                    progressPercentage,
+                    conicGradient,
+                    legendData,
+                    circumference,
+                    dashOffset,
+                    radius
+                });
+
+            }, []);
+
+            if (!stats) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-96 space-y-4 animate-in fade-in zoom-in duration-500">
+                        <div className="p-6 bg-white/80 dark:bg-gray-800/80 rounded-full shadow-xl">
+                            <TableIcon className="w-16 h-16 text-gray-300 dark:text-gray-600" />
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-500 dark:text-gray-400">No Data Available</h2>
+                        <p className="text-gray-400 dark:text-gray-500">Please upload a file in the "21 Days Report Tool" tab first.</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="max-w-6xl mx-auto space-y-12 pb-20 animate-in slide-in-from-bottom-8 duration-700">
+                    <div className="text-center space-y-2">
+                        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-400">
+                            Report Analytics
+                        </h1>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium">Real-time visualization of your progress and data distribution.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+                        
+                        {/* 1. Progress Circle Card */}
+                        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/20 dark:border-gray-700/30 flex flex-col items-center relative overflow-hidden group hover:shadow-2xl transition-all duration-300">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
+                            
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-8 flex items-center gap-2">
+                                <CheckIcon className="text-emerald-500" /> Action Progress
+                            </h2>
+
+                            <div className="relative w-64 h-64">
+                                {/* SVG Circle */}
+                                <svg className="w-full h-full transform -rotate-90 drop-shadow-lg">
+                                    {/* Track */}
+                                    <circle
+                                        cx="50%" cy="50%" r={stats.radius}
+                                        fill="transparent"
+                                        stroke="currentColor"
+                                        strokeWidth="15"
+                                        className="text-gray-100 dark:text-gray-700"
+                                    />
+                                    {/* Progress */}
+                                    <circle
+                                        cx="50%" cy="50%" r={stats.radius}
+                                        fill="transparent"
+                                        stroke="url(#progressGradient)"
+                                        strokeWidth="15"
+                                        strokeLinecap="round"
+                                        style={{
+                                            strokeDasharray: stats.circumference,
+                                            strokeDashoffset: stats.dashOffset,
+                                            transition: 'stroke-dashoffset 1.5s ease-in-out'
+                                        }}
+                                    />
+                                    <defs>
+                                        <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor="#34d399" />
+                                            <stop offset="100%" stopColor="#10b981" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                                
+                                {/* Inner Text */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span className="text-5xl font-black text-gray-800 dark:text-white tracking-tighter">
+                                        {stats.progressPercentage}%
+                                    </span>
+                                    <span className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Completed</span>
+                                </div>
+                            </div>
+
+                            <div className="mt-8 text-center">
+                                <p className="text-gray-600 dark:text-gray-300 font-medium">
+                                    You have completed <span className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">{stats.completedCount}</span> out of {stats.total} lines.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* 2. Status Distribution Donut Card */}
+                        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/20 dark:border-gray-700/30 flex flex-col items-center relative overflow-hidden group hover:shadow-2xl transition-all duration-300">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-8 flex items-center gap-2">
+                                <PieChartIcon /> Status Overview
+                            </h2>
+
+                            <div className="flex flex-col sm:flex-row items-center gap-8 w-full justify-center">
+                                {/* Donut Chart */}
+                                <div className="relative w-48 h-48 flex-shrink-0">
+                                    <div 
+                                        className="w-full h-full rounded-full shadow-inner"
+                                        style={{
+                                            background: stats.conicGradient,
+                                            mask: 'radial-gradient(transparent 55%, black 56%)',
+                                            WebkitMask: 'radial-gradient(transparent 55%, black 56%)'
+                                        }}
+                                    ></div>
+                                    {/* Center Hole Content */}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                        <span className="text-2xl font-bold text-gray-700 dark:text-gray-200">{stats.total}</span>
+                                        <span className="text-[10px] text-gray-400 uppercase">Total</span>
+                                    </div>
+                                </div>
+
+                                {/* Legend */}
+                                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                                    {stats.legendData.map((item, i) => (
+                                        <div key={i} className="flex items-center justify-between gap-4 text-sm group/item">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: item.color }}></span>
+                                                <span className="font-medium text-gray-700 dark:text-gray-300">{item.stat}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-bold text-gray-900 dark:text-white">{item.count}</span>
+                                                <span className="text-xs text-gray-400 w-8 text-right">{item.percentage}%</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App Shell ---
+        const App = () => {
+            const [activeTab, setActiveTab] = useState(() => {
+                return localStorage.getItem('active_tab') || 'validator';
+            });
+
+            // Global Dark Mode State
+            const [isDarkMode, setIsDarkMode] = useState(() => {
+                return localStorage.getItem('global_dark_mode') === 'true';
+            });
+
+            // Add background mode state
+            const [bgMode, setBgMode] = useState(() => {
+                return localStorage.getItem('global_bg_mode') || 'default';
+            });
+
+            const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
+            const bgMenuRef = useRef(null);
+
+            const bgOptions = [
+                { id: 'default', name: 'Aurora Gradient' },
+                { id: 'matrix', name: 'Cyber Matrix' },
+                { id: 'hex', name: 'Carbon Hex' },
+                { id: 'rain', name: 'Matrix Rain' },
+                { id: 'rain2', name: 'Rain' }
+            ];
+
+            useEffect(() => {
+                localStorage.setItem('active_tab', activeTab);
+            }, [activeTab]);
+
+            // Apply Dark Mode Class to HTML element globally
+            useEffect(() => {
+                localStorage.setItem('global_dark_mode', isDarkMode);
+                if (isDarkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }, [isDarkMode]);
+
+            // Persist background mode
+            useEffect(() => {
+                localStorage.setItem('global_bg_mode', bgMode);
+            }, [bgMode]);
+
+            // Close BG menu on click outside
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (bgMenuRef.current && !bgMenuRef.current.contains(event.target)) {
+                        setIsBgMenuOpen(false);
+                    }
+                };
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, []);
+
+            // Determine root container background class
+            const getContainerClass = () => {
+                if (bgMode === 'matrix' || bgMode === 'hex' || bgMode === 'rain' || bgMode === 'rain2') {
+                    // Transparent so background shows through
+                    return "min-h-screen flex flex-col transition-colors duration-300 bg-transparent text-gray-900 dark:text-gray-100 font-sans";
+                }
+                return "min-h-screen flex flex-col transition-colors duration-300 bg-gray-50 dark:bg-gray-900 font-sans relative";
+            };
+
+            return (
+                <div className={getContainerClass()}>
+                    {/* Background Layer */}
+                    {bgMode === 'matrix' ? (
+                        <MatrixBackground />
+                    ) : bgMode === 'hex' ? (
+                        <HexBackground />
+                    ) : bgMode === 'rain' ? (
+                        <MatrixRainBackground />
+                    ) : bgMode === 'rain2' ? (
+                        <RainBackground />
+                    ) : (
+                        <GradientBackground />
+                    )}
+                    
+                    {/* Navigation Bar - Made even MORE transparent */}
+                    <div className="bg-white/10 dark:bg-gray-900/20 backdrop-blur-md shadow-sm border-b border-white/10 dark:border-gray-700/20 sticky top-0 z-50 transition-colors duration-300">
+                        <div className="max-w-full px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between items-center h-16">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0 flex items-center bg-blue-600 text-white p-2 rounded-lg mr-4">
+                                        <TableIcon />
+                                    </div>
+                                    <div className="hidden md:block">
+                                        <div className="flex items-baseline space-x-4">
+                                            <button
+                                                onClick={() => setActiveTab('validator')}
+                                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                    activeTab === 'validator'
+                                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
+                                                }`}
+                                            >
+                                                STS Report Tool
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('newTool')}
+                                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                    activeTab === 'newTool'
+                                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
+                                                }`}
+                                            >
+                                                Notification Pro
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('excelTool3')}
+                                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                    activeTab === 'excelTool3'
+                                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
+                                                }`}
+                                            >
+                                                21 Days Report Tool
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('reportProgress')}
+                                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                    activeTab === 'reportProgress'
+                                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
+                                                }`}
+                                            >
+                                                Report Progress
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <div className="text-sm text-gray-400 font-medium hidden sm:block">
+                                        v4.0 (Auto-Save)
+                                    </div>
+
+                                    {/* Background Toggle Menu */}
+                                    <div className="relative" ref={bgMenuRef}>
+                                        <button 
+                                            onClick={() => setIsBgMenuOpen(!isBgMenuOpen)}
+                                            className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors"
+                                            title="Change Background"
+                                        >
+                                            <MonitorIcon />
+                                        </button>
+                                        
+                                        {isBgMenuOpen && (
+                                            <div className="absolute right-0 mt-2 w-48 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 z-50">
+                                                {bgOptions.map((option) => (
+                                                    <button
+                                                        key={option.id}
+                                                        onClick={() => {
+                                                            setBgMode(option.id);
+                                                            setIsBgMenuOpen(false);
+                                                        }}
+                                                        className={`block w-full text-left px-4 py-2 text-sm ${
+                                                            bgMode === option.id 
+                                                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold' 
+                                                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                                                        }`}
+                                                    >
+                                                        {option.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Global BB8 Switch */}
+                                    <label className="bb8-toggle" title="Toggle Dark Mode">
+                                        <input 
+                                            className="bb8-toggle__checkbox" 
+                                            type="checkbox" 
+                                            checked={isDarkMode} 
+                                            onChange={() => setIsDarkMode(!isDarkMode)} 
+                                        />
+                                        <div className="bb8-toggle__container">
+                                            <div className="bb8-toggle__scenery">
+                                            <div className="bb8-toggle__star"></div>
+                                            <div className="bb8-toggle__star"></div>
+                                            <div className="bb8-toggle__star"></div>
+                                            <div className="bb8-toggle__star"></div>
+                                            <div className="bb8-toggle__star"></div>
+                                            <div className="bb8-toggle__star"></div>
+                                            <div className="tatto-1"></div>
+                                            <div className="tatto-2"></div>
+                                            <div className="gomrassen"></div>
+                                            <div className="hermes"></div>
+                                            <div className="chenini"></div>
+                                            <div className="bb8-toggle__cloud"></div>
+                                            <div className="bb8-toggle__cloud"></div>
+                                            <div className="bb8-toggle__cloud"></div>
+                                            </div>
+                                            <div className="bb8">
+                                            <div className="bb8__head-container">
+                                                <div className="bb8__antenna"></div>
+                                                <div className="bb8__antenna"></div>
+                                                <div className="bb8__head"></div>
+                                            </div>
+                                            <div className="bb8__body"></div>
+                                            </div>
+                                            <div className="artificial__hidden">
+                                            <div className="bb8__shadow"></div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content Area */}
+                    <main className="flex-grow p-6 md:p-8 dark:text-gray-200 relative z-10">
+                        {/* We use 'hidden' class instead of conditional rendering to preserve state */}
+                        <div className={activeTab === 'validator' ? 'block' : 'hidden'}>
+                            <StsReportTool />
+                        </div>
+                        <div className={activeTab === 'newTool' ? 'block' : 'hidden'}>
+                            <SqrParserTool />
+                        </div>
+                        <div className={activeTab === 'excelTool3' ? 'block' : 'hidden'}>
+                            <ExcelTool3 />
+                        </div>
+                        <div className={activeTab === 'reportProgress' ? 'block' : 'hidden'}>
+                            <ReportProgressTab />
+                        </div>
+                    </main>
+
+                    {/* Footer Credit */}
+                    <footer className="w-full py-4 px-8 border-t border-gray-100/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm mt-auto relative z-10">
+                        <div className="flex justify-end items-center">
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-semibold opacity-60 hover:opacity-100 transition-opacity select-none cursor-default">
+                                Developed by <span className="text-gray-600 dark:text-gray-300">Aymen Alehiane</span>
+                            </p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
