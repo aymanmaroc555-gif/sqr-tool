@@ -1926,7 +1926,7 @@
             ];
 
             const parseText = () => {
-                const regex = /Order\s+(\d+)\s+Line:\s+([\d\.]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
+                const regex = /(?:Order|Quote)\s+(\d+)\s+Line:\s+([\d\.]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
                 let match;
                 const tempResults = [];
                 const counts = {};
@@ -3236,5 +3236,6 @@
 </body>
 
 </html> 
+
 
 
