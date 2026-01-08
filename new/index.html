@@ -1926,26 +1926,30 @@
             ];
 
             const parseText = () => {
-                const regex = /(?:Order|Quote)\s+(\d+)\s+Line:\s+([\d\.]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
+                const regex = /(Order|Quote)\s+(\d+)\s+Line:\s+([\d\.]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
                 let match;
                 const tempResults = [];
                 const counts = {};
                 let lastMatchIndex = 0;
 
                 while ((match = regex.exec(inputText)) !== null) {
-                    const order = match[1].trim();
-                    const line = match[2].trim();
-                    const sqr = match[3].trim(); 
-                    const item = match[4].trim();
+                    const type = match[1].trim(); 
+                    const refNum = match[2].trim();
+                    const line = match[3].trim();
+                    const sqr = match[4].trim(); 
+                    const item = match[5].trim();
                     
-                    const prefixText = inputText.substring(lastMatchIndex, match.index);
-                    const isResale = prefixText.includes("RESALE PRICE CHANGE");
+                    // BROADER RESALE DETECTION
+                    const prefixText = inputText.substring(lastMatchIndex, match.index).toUpperCase();
+                    // Checks for 'RESALE' anywhere in the text preceding this match
+                    const isResale = prefixText.includes("RESALE");
 
                     const id = Math.random().toString(36).substr(2, 9);
                     tempResults.push({ 
-                        sqr, item, order, line, isResale, id, status: null
+                        sqr, item, refNum, type, line, isResale, id, status: null
                     });
                     
+                    // Only count duplicates if it's NOT a resale (usually SQRs are the duplicates we care about)
                     if (!isResale && sqr) {
                         counts[sqr] = (counts[sqr] || 0) + 1;
                     }
@@ -1985,7 +1989,13 @@
                 let tsvContent = "SQR / Order\tPart Number\tLine\tStatus\n";
                 
                 parsedData.forEach(row => {
-                    const col1 = row.isResale ? row.order : row.sqr;
+                    // DISTINGUISH IN EXCEL EXPORT
+                    let col1 = row.sqr;
+                    if (row.isResale) {
+                         const typePrefix = row.type === "Quote" ? "Quote" : "Order";
+                         col1 = `${typePrefix} ${row.refNum || row.order}`;
+                    }
+
                     const statusText = row.status || "";
                     tsvContent += `${col1}\t${row.item}\t${row.line}\t${statusText}\n`;
                 });
@@ -2105,8 +2115,9 @@
                                             <h2 className="font-bold text-gray-800 dark:text-white">Parsed Items <span className="ml-2 bg-indigo-100/80 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full text-xs">{parsedData.length}</span></h2>
                                             
                                             <div className="flex gap-4 text-xs dark:text-gray-300">
-                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></span> Resale</div>
-                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm"></span> Duplicate (Color Coded)</div>
+                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></span> Resale Order</div>
+                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-cyan-500 shadow-sm"></span> Resale Quote</div>
+                                                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm"></span> Duplicate</div>
                                             </div>
                                     </div>
 
@@ -2130,14 +2141,29 @@
                                                         
                                                         // Styling logic
                                                         if (row.isResale) {
-                                                            col1Value = row.order;
-                                                            col1Text = (
-                                                                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                                                        {row.order}
-                                                                </span>
-                                                            );
-                                                            borderClass = "border-l-4 border-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/20";
+                                                            // Fallback for old data structure if refNum missing
+                                                            col1Value = row.refNum || row.order; 
+                                                            const displayType = row.type || "Order"; // Default to Order for old data
+                                                            
+                                                            if (displayType === 'Quote') {
+                                                                // QUOTE STYLE (Cyan/Blue)
+                                                                col1Text = (
+                                                                    <span className="font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
+                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                        {col1Value}
+                                                                    </span>
+                                                                );
+                                                                borderClass = "border-l-4 border-cyan-500 bg-cyan-50/20 dark:bg-cyan-900/20";
+                                                            } else {
+                                                                // ORDER STYLE (Green)
+                                                                col1Text = (
+                                                                    <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                                            {col1Value}
+                                                                    </span>
+                                                                );
+                                                                borderClass = "border-l-4 border-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/20";
+                                                            }
                                                         } else if (row.sqr && sqrCounts[row.sqr] > 1) {
                                                             const colorClass = sqrColorMap[row.sqr];
                                                             highlightClass = `${colorClass} px-2 py-0.5 rounded border box-decoration-clone`;
@@ -2409,7 +2435,8 @@
                             isStatusMatch = true;
                         } else {
                             if (selectedStats.has("OPEN_ISSUES")) {
-                                if (["AUTH", "PNDA", "EXPD", "STS", "PREW", "DRFT", "NAFS"].includes(stat)) isStatusMatch = true;
+                                // UPDATED: Only AUTH, PNDA, EXPD are considered Open Issues
+                                if (["AUTH", "PNDA", "EXPD"].includes(stat)) isStatusMatch = true;
                             }
                             if (!isStatusMatch && selectedStats.has(stat)) { isStatusMatch = true; }
                         }
@@ -2724,11 +2751,16 @@
         };
 
         // --- Feature 4: Report Progress Tab ---
-        const ReportProgressTab = () => {
+        const ReportProgressTab = ({ isActive }) => {
             const [stats, setStats] = useState(null);
+            const [filterMode, setFilterMode] = useState("OVERALL");
+            const [availableStats, setAvailableStats] = useState([]);
             
             useEffect(() => {
-                // Load data fresh from localStorage on mount
+                // Only run calculation if the tab is actually active
+                if (!isActive) return;
+
+                // Load data fresh from localStorage
                 const r21DataStr = localStorage.getItem('r21_data');
                 const processedStr = localStorage.getItem('r21_processed');
                 
@@ -2740,9 +2772,23 @@
                     return;
                 }
 
-                // 1. Calculate Status Distribution (for Donut)
+                // 1. Determine Filters
+                const uniqueStats = [...new Set(r21Data.map(r => (r["SQR_Stat"] || "OTHER").trim().toUpperCase()))].sort();
+                setAvailableStats(uniqueStats);
+
+                // 2. Filter Data based on selection
+                let relevantRows = r21Data;
+                // UPDATED: Only AUTH, PNDA, EXPD are considered Open Issues for Analytics
+                const openIssueCodes = ["AUTH", "PNDA", "EXPD"];
+                
+                if (filterMode === "OPEN_ISSUES") {
+                    relevantRows = r21Data.filter(row => openIssueCodes.includes((row["SQR_Stat"] || "").trim().toUpperCase()));
+                } else if (filterMode !== "OVERALL") {
+                    relevantRows = r21Data.filter(row => (row["SQR_Stat"] || "").trim().toUpperCase() === filterMode);
+                }
+
+                // 3. Calculate Status Distribution (for Donut) based on FILTERED data
                 const distribution = {};
-                // Colors map for CSS conic-gradient
                 const colorMap = {
                     'AUTH': '#4ade80',  // green-400
                     'PNDA': '#fb923c',  // orange-400
@@ -2755,52 +2801,49 @@
                     'OTHER': '#e5e7eb'  // gray-200
                 };
 
-                // We only care about rows that are "actionable" (low margin) usually, 
-                // but user said "percentage of the lines that i have", implying ALL lines loaded.
-                // Let's stick to the full dataset loaded in the tool.
-                r21Data.forEach(row => {
+                relevantRows.forEach(row => {
                     let stat = (row["SQR_Stat"] || "OTHER").trim().toUpperCase();
                     if (!colorMap[stat]) stat = 'OTHER';
                     distribution[stat] = (distribution[stat] || 0) + 1;
                 });
 
-                // Prepare Conic Gradient String
+                // Prepare Conic Gradient
                 let currentAngle = 0;
-                const total = r21Data.length;
+                const total = relevantRows.length;
                 const gradientParts = [];
                 const legendData = [];
 
                 Object.entries(distribution).forEach(([stat, count]) => {
                     const percentage = (count / total) * 100;
-                    const nextAngle = currentAngle + (percentage * 3.6); // 360 degrees / 100%
+                    const nextAngle = currentAngle + (percentage * 3.6);
                     const color = colorMap[stat];
                     
                     gradientParts.push(`${color} ${currentAngle}deg ${nextAngle}deg`);
-                    legendData.push({ stat, count, color, percentage: Math.round(percentage) });
+                    legendData.push({ stat, count, color, percentage: percentage.toFixed(1) }); // Legend precision
                     currentAngle = nextAngle;
                 });
 
-                const conicGradient = `conic-gradient(${gradientParts.join(', ')})`;
+                const conicGradient = total > 0 
+                    ? `conic-gradient(${gradientParts.join(', ')})`
+                    : `conic-gradient(#e5e7eb 0deg 360deg)`; // Grey if empty
 
-                // 2. Calculate Progress (for Circle)
-                // Filter rows that match the low margin criteria used in the main tool to make progress meaningful?
-                // Or just total progress against all rows?
-                // User said "keep increasing when i m done with the lines".
-                // Usually "done" means clicked an action button.
+                // 4. Calculate Progress (High Precision)
+                const completedCount = relevantRows.filter(row => processed[row._id]).length;
+                const progressRaw = total > 0 ? (completedCount / total) * 100 : 0;
                 
-                // Let's count how many IDs in r21Data exist in processedRows
-                const completedCount = r21Data.filter(row => processed[row._id]).length;
-                const progressPercentage = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+                // Display string (e.g., "0.05", "12.50")
+                const progressDisplay = progressRaw.toFixed(2); 
 
-                // SVG Circle Props
+                // SVG Props
                 const radius = 80;
                 const circumference = 2 * Math.PI * radius;
-                const dashOffset = circumference - (progressPercentage / 100) * circumference;
+                const dashOffset = circumference - (progressRaw / 100) * circumference;
 
                 setStats({
                     total,
                     completedCount,
-                    progressPercentage,
+                    progressDisplay,
+                    progressRaw,
                     conicGradient,
                     legendData,
                     circumference,
@@ -2808,7 +2851,7 @@
                     radius
                 });
 
-            }, []);
+            }, [filterMode, isActive]); // Depend on isActive to trigger refresh
 
             if (!stats) {
                 return (
@@ -2823,12 +2866,50 @@
             }
 
             return (
-                <div className="max-w-6xl mx-auto space-y-12 pb-20 animate-in slide-in-from-bottom-8 duration-700">
+                <div className="max-w-6xl mx-auto space-y-8 pb-20 animate-in slide-in-from-bottom-8 duration-700">
                     <div className="text-center space-y-2">
                         <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-400">
                             Report Analytics
                         </h1>
-                        <p className="text-gray-500 dark:text-gray-400 font-medium">Real-time visualization of your progress and data distribution.</p>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium">Real-time visualization with precision tracking.</p>
+                    </div>
+
+                    {/* --- Filter Controls --- */}
+                    <div className="flex justify-center flex-wrap gap-2 p-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/30">
+                        <button 
+                            onClick={() => setFilterMode("OVERALL")}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all transform hover:scale-105 ${
+                                filterMode === "OVERALL" 
+                                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" 
+                                : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                            }`}
+                        >
+                            OVERALL
+                        </button>
+                        <button 
+                            onClick={() => setFilterMode("OPEN_ISSUES")}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all transform hover:scale-105 ${
+                                filterMode === "OPEN_ISSUES" 
+                                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" 
+                                : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                            }`}
+                        >
+                            OPEN ISSUES (Std)
+                        </button>
+                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2 self-center"></div>
+                        {availableStats.map(stat => (
+                             <button 
+                                key={stat}
+                                onClick={() => setFilterMode(stat)}
+                                className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${
+                                    filterMode === stat 
+                                    ? "bg-purple-600 text-white shadow-md" 
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                                }`}
+                            >
+                                {stat}
+                            </button>
+                        ))}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
@@ -2837,11 +2918,14 @@
                         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/20 dark:border-gray-700/30 flex flex-col items-center relative overflow-hidden group hover:shadow-2xl transition-all duration-300">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
                             
-                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-8 flex items-center gap-2">
-                                <CheckIcon className="text-emerald-500" /> Action Progress
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                                <CheckIcon className="text-emerald-500" /> 
+                                {filterMode === "OVERALL" ? "Overall Progress" : 
+                                 filterMode === "OPEN_ISSUES" ? "Open Issues Progress" : 
+                                 `${filterMode} Progress`}
                             </h2>
 
-                            <div className="relative w-64 h-64">
+                            <div className="relative w-64 h-64 mt-6">
                                 {/* SVG Circle */}
                                 <svg className="w-full h-full transform -rotate-90 drop-shadow-lg">
                                     {/* Track */}
@@ -2862,7 +2946,7 @@
                                         style={{
                                             strokeDasharray: stats.circumference,
                                             strokeDashoffset: stats.dashOffset,
-                                            transition: 'stroke-dashoffset 1.5s ease-in-out'
+                                            transition: 'stroke-dashoffset 1.0s cubic-bezier(0.4, 0, 0.2, 1)'
                                         }}
                                     />
                                     <defs>
@@ -2875,16 +2959,16 @@
                                 
                                 {/* Inner Text */}
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-5xl font-black text-gray-800 dark:text-white tracking-tighter">
-                                        {stats.progressPercentage}%
+                                    <span className="text-4xl font-black text-gray-800 dark:text-white tracking-tighter">
+                                        {stats.progressDisplay}%
                                     </span>
-                                    <span className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Completed</span>
+                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Completed</span>
                                 </div>
                             </div>
 
                             <div className="mt-8 text-center">
                                 <p className="text-gray-600 dark:text-gray-300 font-medium">
-                                    You have completed <span className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">{stats.completedCount}</span> out of {stats.total} lines.
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">{stats.completedCount}</span> / {stats.total} lines
                                 </p>
                             </div>
                         </div>
@@ -2893,15 +2977,17 @@
                         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/20 dark:border-gray-700/30 flex flex-col items-center relative overflow-hidden group hover:shadow-2xl transition-all duration-300">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
 
-                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-8 flex items-center gap-2">
-                                <PieChartIcon /> Status Overview
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                                <PieChartIcon /> 
+                                {filterMode === "OVERALL" ? "Overall Distribution" : "Filtered Breakdown"}
                             </h2>
+                            <p className="text-xs text-gray-400 mb-6">Distribution of current selection</p>
 
                             <div className="flex flex-col sm:flex-row items-center gap-8 w-full justify-center">
                                 {/* Donut Chart */}
                                 <div className="relative w-48 h-48 flex-shrink-0">
                                     <div 
-                                        className="w-full h-full rounded-full shadow-inner"
+                                        className="w-full h-full rounded-full shadow-inner transition-all duration-500"
                                         style={{
                                             background: stats.conicGradient,
                                             mask: 'radial-gradient(transparent 55%, black 56%)',
@@ -2911,12 +2997,12 @@
                                     {/* Center Hole Content */}
                                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                         <span className="text-2xl font-bold text-gray-700 dark:text-gray-200">{stats.total}</span>
-                                        <span className="text-[10px] text-gray-400 uppercase">Total</span>
+                                        <span className="text-[10px] text-gray-400 uppercase">Filtered</span>
                                     </div>
                                 </div>
 
                                 {/* Legend */}
-                                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                                <div className="flex flex-col gap-2 w-full sm:w-auto max-h-60 overflow-y-auto custom-scrollbar pr-2">
                                     {stats.legendData.map((item, i) => (
                                         <div key={i} className="flex items-center justify-between gap-4 text-sm group/item">
                                             <div className="flex items-center gap-2">
@@ -2925,10 +3011,13 @@
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="font-bold text-gray-900 dark:text-white">{item.count}</span>
-                                                <span className="text-xs text-gray-400 w-8 text-right">{item.percentage}%</span>
+                                                <span className="text-xs text-gray-400 w-10 text-right">{item.percentage}%</span>
                                             </div>
                                         </div>
                                     ))}
+                                    {stats.legendData.length === 0 && (
+                                        <p className="text-gray-400 text-xs italic">No data in filter</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -3165,7 +3254,7 @@
                             <ExcelTool3 />
                         </div>
                         <div className={activeTab === 'reportProgress' ? 'block' : 'hidden'}>
-                            <ReportProgressTab />
+                            <ReportProgressTab isActive={activeTab === 'reportProgress'} />
                         </div>
                     </main>
 
@@ -3235,7 +3324,4 @@
     </script>
 </body>
 
-</html> 
-
-
-
+</html>
