@@ -1130,6 +1130,20 @@
             text-shadow: none !important;
             opacity: 0.7; /* Dim it slightly since glow is gone */
         }
+
+        /* FIX: Explicitly force input visibility in performance mode */
+        .perf-mode input, .perf-mode textarea, .perf-mode select {
+            background-color: #ffffff !important;
+            color: #1f2937 !important; /* gray-900 */
+            border: 1px solid #d1d5db !important;
+            box-shadow: none !important;
+        }
+        
+        .dark .perf-mode input, .dark .perf-mode textarea, .dark .perf-mode select {
+            background-color: #374151 !important; /* gray-700 */
+            color: #f9fafb !important; /* gray-50 */
+            border: 1px solid #4b5563 !important;
+        }
     </style>
 </head>
 <body>
