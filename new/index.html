@@ -1768,7 +1768,8 @@
             ];
 
             const parseText = () => {
-                const regex = /(Order|Quote)\s+(\d+)\s+Line:\s+([\d\.]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
+                // FIXED: Added 'E' and '+' to the Line capture group to handle scientific notation (e.g., 9.99E+125)
+                const regex = /(Order|Quote)\s+(\d+)\s+Line:\s+([\d\.\+E]+)\s+SQR Number:\s*(\d*)\s+ITEM:\s*(.*?)\s*MFR:/g;
                 let match;
                 const tempResults = [];
                 const counts = {};
